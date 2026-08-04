@@ -145,6 +145,16 @@ app.post('/s/:code/setpass', async (req, res) => {
   await store.set('space:' + c, sp);
   res.json({ ok:true });
 });
+app.post('/s/:code/delete', async (req, res) => {
+  const c = scode(req.params.code); const sp = await store.get('space:' + c);
+  if (!sp) return res.json({ ok:true, note:'gone' });
+  if (sp.pass !== ((req.body && req.body.pass) || '')) return res.json({ ok:false, error:'badpass' });
+  await store.set('space:' + c, null);
+  await store.set('cards:' + c, []);
+  await store.set('log:' + c, []);
+  await store.set('door:' + c, {});
+  res.json({ ok:true });
+});
 app.get('/s/:code/exists', async (req, res) => {
   res.json({ exists: !!(await store.get('space:' + scode(req.params.code))) });
 });

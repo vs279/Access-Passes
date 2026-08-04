@@ -151,6 +151,7 @@
   .modal .msub{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:16px}
   #mQR{text-align:center;margin-bottom:14px}
   #mQR canvas,#mQR img{width:150px;height:150px;display:inline-block}
+  #scanQR canvas,#scanQR img{width:170px;height:170px;display:inline-block;background:#fff;padding:10px;border-radius:12px}
   .email-preview{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px;font-size:12.5px;line-height:1.6;color:var(--muted);margin-bottom:14px}
   .email-preview .lnk{color:var(--amber);word-break:break-all;font-family:var(--mono);font-size:10.5px}
   .m-row{display:flex;gap:8px;flex-wrap:wrap}.m-row .btn{flex:1;min-width:110px}
@@ -176,11 +177,9 @@
   <!-- SCAN -->
   <section id="v-scan" class="scan">
     <div id="bindPrompt" class="bindbox hide">
-      <div class="prompt" style="margin-bottom:14px">Set up this door</div>
-      <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Type the space code this scanner belongs to.</p>
-      <input class="field" id="bindCode" placeholder="space code" autocomplete="off" style="text-align:center;font-family:var(--mono);letter-spacing:2px" onkeydown="if(event.key==='Enter')bindDoor()"/>
-      <div class="err" id="bindErr"></div>
-      <button class="btn primary full" onclick="bindDoor()">Use this door</button>
+      <div class="prompt" style="margin-bottom:14px">Scanner not set up</div>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6">Open your space's <b>scanner link</b> on this device to make it a door for that space. You'll find the link and its QR in your dashboard under <b>Door scanner</b>.</p>
+      <button class="btn ghost full mt16" onclick="openGate('login')">Log in to get the link</button>
     </div>
 
     <div id="scanUI" class="scan hide" style="padding-top:0">
@@ -211,7 +210,6 @@
       <input class="field" id="gPass" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')submitGate()"/>
       <div class="err" id="gErr"></div>
       <button class="btn primary full" id="gBtn" onclick="submitGate()">Log in</button>
-      <div class="subnote" id="demoHint" style="text-align:center"></div>
       <button class="btn ghost full mt12" onclick="go('scan')">← Back to scanner</button>
     </div>
   </section>
@@ -253,6 +251,17 @@
         <button class="btn" onclick="testDoor()">Test unlock</button>
       </div>
       <div class="subnote" id="doorStatus"></div>
+    </div>
+
+    <div class="card glass">
+      <h3>Door scanner</h3>
+      <div class="sub">Open this on the device at your door &middot; or scan the QR</div>
+      <div id="scanQR" style="text-align:center;margin-bottom:14px"></div>
+      <div class="email-preview"><div class="lnk" id="scanLink"></div></div>
+      <div class="grid2">
+        <button class="btn primary" onclick="openScanner()">Open scanner</button>
+        <button class="btn" onclick="copyScanLink()">Copy link</button>
+      </div>
     </div>
 
     <div class="card glass">
@@ -306,12 +315,12 @@ async function api(path, method='GET', body, tries=0){
     const res = await fetch(BACKEND.url.replace(/\/+$/,'')+path, {method,
       headers:{'Content-Type':'application/json'}, body: body!==undefined?JSON.stringify(body):undefined});
     if(!res.ok){
-      if(res.status>=500 && tries<6){ if(tries===0) toast('Waking the server…'); await sleep(2500); return api(path,method,body,tries+1); }
+      if(res.status>=500 && tries<20){ if(tries===0) toast('Waking the server… up to a minute'); await sleep(3000); return api(path,method,body,tries+1); }
       throw new Error('API '+res.status);
     }
     const t=await res.text(); return t?JSON.parse(t):null;
   }catch(e){
-    if(tries<6){ if(tries===0) toast('Waking the server…'); await sleep(2500); return api(path,method,body,tries+1); }
+    if(tries<20){ if(tries===0) toast('Waking the server… up to a minute'); await sleep(3000); return api(path,method,body,tries+1); }
     throw e;
   }
 }
@@ -357,17 +366,8 @@ async function boot(){
   if(p.pass){ showPass(p); return; }
   if(p.door){ bound=scode(p.door); lset('passlet_door',bound); }
   else bound=lget('passlet_door');
-  ensureDemo();
+  if(!lget('passlet_demo_purged')){ api('/s/demo/delete','POST',{pass:'passlet2026'}).then(()=>lset('passlet_demo_purged','1')).catch(()=>{}); }
   go('scan');
-}
-async function ensureDemo(){
-  try{
-    const r=await S.create('demo','passlet2026');
-    if(r&&r.ok){
-      const sample={id:id(),name:'Demo Guest',email:'demo@passlet.app',code:'PLDEMO01',expiry:'',maxUses:null,used:0,durationDays:null,created:Date.now(),sent:false};
-      await S.setCards('demo',[sample]);
-    }
-  }catch(e){}
 }
 
 /* ============ routing ============ */
@@ -380,7 +380,7 @@ function go(view){
   if(view==='scan'){ sys.textContent='Door terminal'; resetTerminal(); setupScan();
     tr.innerHTML='<button class="btn sm ghost" onclick="openGate(\'login\')">Log in</button><button class="btn sm primary" onclick="openGate(\'create\')">Create space</button>'; }
   if(view==='gate'){ sys.textContent='Space access'; tr.innerHTML='<button class="btn sm ghost" onclick="go(\'scan\')">← Scanner</button>'; }
-  if(view==='dash'){ sys.textContent='Space · '+esc(mng); renderCards(); renderLog(); loadDoor(); startPoll('dash');
+  if(view==='dash'){ sys.textContent='Space · '+esc(mng); renderCards(); renderLog(); loadDoor(); renderScanner(); startPoll('dash');
     tr.innerHTML='<button class="btn sm ghost" onclick="go(\'scan\')">Scanner</button><button class="btn sm" onclick="signOut()">Sign out</button>'; }
   if(view!=='pass' && !parseHash().pass) location.hash='';
 }
@@ -391,11 +391,8 @@ function openGate(mode){ gateMode=mode;
   document.getElementById('authHint').textContent = mode==='create'?'Pick a space code and a password.':'Enter your space code and password.';
   document.getElementById('gBtn').textContent = mode==='create'?'Create space':'Log in';
   document.getElementById('gErr').textContent=''; document.getElementById('gPass').value='';
-  document.getElementById('demoHint').innerHTML = mode==='login'
-    ? 'Try it — <button onclick="fillDemo()" style="color:var(--amber);text-decoration:underline;text-underline-offset:2px">use the demo login</button>' : '';
   go('gate');
 }
-function fillDemo(){ document.getElementById('gCode').value='demo'; document.getElementById('gPass').value='passlet2026'; }
 async function submitGate(){
   const c=scode(document.getElementById('gCode').value);
   const p=document.getElementById('gPass').value;
@@ -407,7 +404,6 @@ async function submitGate(){
       const r=await S.create(c,p);
       if(!r||!r.ok){ err.textContent = r&&r.error==='exists'?'That space code is taken.':'Could not create.'; return; }
     }else{
-      if(c==='demo'){ try{ await S.create('demo','passlet2026'); }catch(e){} }
       const r=await S.login(c,p);
       if(!r||!r.ok){ err.textContent = r&&r.error==='nospace'?'No space with that code.':'Wrong code or password.'; return; }
     }
@@ -535,24 +531,22 @@ async function savePass(){
 /* ============ scanner (bound space) ============ */
 async function setupScan(){
   const prompt=document.getElementById('bindPrompt'), ui=document.getElementById('scanUI');
-  if(!bound){ prompt.classList.remove('hide'); ui.classList.add('hide'); setTimeout(()=>document.getElementById('bindCode').focus(),50); return; }
+  if(!bound){ prompt.classList.remove('hide'); ui.classList.add('hide'); return; }
   prompt.classList.add('hide'); ui.classList.remove('hide');
   document.getElementById('doorName').textContent=bound;
   try{ scanCards=await S.getCards(bound); }catch(e){ scanCards=[]; }
   startPoll('scan');
 }
-async function bindDoor(){
-  const c=scode(document.getElementById('bindCode').value);
-  const err=document.getElementById('bindErr');
-  if(!c){ err.textContent='Enter a code.'; return; }
-  err.textContent='…';
-  try{ const r=await S.exists(c); if(!r||!r.exists){ err.textContent='No space with that code.'; return; } }
-  catch(e){ err.textContent='Server unreachable.'; return; }
-  bound=c; lset('passlet_door',c); err.textContent='';
-  document.getElementById('bindCode').value='';
-  setupScan();
-}
 function unbindDoor(){ stopCamera(); bound=null; ldel('passlet_door'); setupScan(); }
+function scannerLink(){ return location.origin+location.pathname+'#door='+enc(mng); }
+function renderScanner(){
+  const link=scannerLink();
+  document.getElementById('scanLink').textContent=link;
+  const q=document.getElementById('scanQR'); q.innerHTML='';
+  try{ new QRCode(q,{text:link,width:170,height:170,correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+}
+function openScanner(){ window.open(scannerLink(),'_blank'); }
+function copyScanLink(){ navigator.clipboard?.writeText(scannerLink()).then(()=>toast('Scanner link copied')).catch(()=>{}); }
 
 async function checkCode(raw){
   if(processing) return; const cc=norm(raw); if(!cc||!bound) return; processing=true;
