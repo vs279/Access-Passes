@@ -172,8 +172,22 @@ app.get('/s/:code/door', async (req, res) => {
 });
 app.put('/s/:code/door', async (req, res) => {
   const k = 'door:' + scode(req.params.code); const cur = (await store.get(k)) || {}; const b = req.body || {};
-  await store.set(k, { server:(b.server||'').trim(), deviceId:(b.deviceId||'').trim(),
-    channel:(b.channel||'0').toString().trim(), authKey: b.authKey ? b.authKey : (cur.authKey||'') });
+  const cfg = { server:(b.server||'').trim(), deviceId:(b.deviceId||'').trim(),
+    channel:(b.channel||'0').toString().trim(), authKey: b.authKey ? b.authKey : (cur.authKey||'') };
+  if (!cfg.server || !cfg.deviceId || !cfg.authKey)
+    return res.json({ ok:false, error:'incomplete', message:'Fill in server, device ID, and auth key.' });
+  // Verify it's a REAL Shelly: ask the Shelly cloud for the device status.
+  try {
+    const body = new URLSearchParams({ id: cfg.deviceId, auth_key: cfg.authKey });
+    const r = await fetch(cfg.server.replace(/\/+$/, '') + '/device/status',
+      { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body });
+    const data = await r.json().catch(() => null);
+    if (!data || data.isok !== true)
+      return res.json({ ok:false, error:'invalid', message:'That isn\u2019t a valid Shelly device \u2014 check the server, device ID, and auth key.' });
+  } catch (e) {
+    return res.json({ ok:false, error:'unreachable', message:'Couldn\u2019t reach Shelly cloud to verify. Check the server address.' });
+  }
+  await store.set(k, cfg);
   res.json({ ok:true });
 });
 app.post('/s/:code/unlock', async (req, res) => {
