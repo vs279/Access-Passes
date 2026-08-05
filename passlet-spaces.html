@@ -203,6 +203,12 @@
       </div>
     </div>
 
+    <div id="deniedBox" class="bindbox hide">
+      <div style="font-size:38px;margin-bottom:10px">⛔</div>
+      <div class="prompt" style="margin-bottom:10px;color:var(--red)">Access denied</div>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6">This device isn't allowed to scan at <b id="dnDoor"></b>. Please contact the host.</p>
+    </div>
+
     <div id="scanUI" class="scan hide" style="padding-top:0">
       <div class="prompt" id="scanPrompt">Present QR code to enter</div>
       <div class="door-tag">Door: <b id="doorName">—</b><button onclick="unbindDoor()">change</button></div>
@@ -402,6 +408,7 @@ const S = {
   listScanners:(c)=>api(`/s/${enc(c)}/scanners`,'GET',undefined,mngToken),
   approveScanner:(c,did)=>api(`/s/${enc(c)}/scanner/approve`,'POST',{deviceId:did},mngToken),
   revokeScanner:(c,did)=>api(`/s/${enc(c)}/scanner/revoke`,'POST',{deviceId:did},mngToken),
+  removeScanner:(c,did)=>api(`/s/${enc(c)}/scanner/remove`,'POST',{deviceId:did},mngToken),
   getCards:(c)=>api(`/s/${enc(c)}/cards`,'GET',undefined,mngToken),
   setCards:(c,a)=>api(`/s/${enc(c)}/cards`,'PUT',a,mngToken),
   getLog:(c)=>api(`/s/${enc(c)}/log`,'GET',undefined,mngToken),
@@ -652,16 +659,20 @@ async function savePass(){
 /* ============ scanner (bound space) ============ */
 let apPoll=null;
 function stopApPoll(){ if(apPoll){ clearInterval(apPoll); apPoll=null; } }
+let apLastStatus=null;
 async function setupScan(){
   stopApPoll();
-  const bp=document.getElementById('bindPrompt'), ap=document.getElementById('approvalBox'), ui=document.getElementById('scanUI');
-  bp.classList.add('hide'); ap.classList.add('hide'); ui.classList.add('hide');
+  const bp=document.getElementById('bindPrompt'), ap=document.getElementById('approvalBox'),
+        ui=document.getElementById('scanUI'), dn=document.getElementById('deniedBox');
+  [bp,ap,ui,dn].forEach(e=>e.classList.add('hide'));
   if(!bound){ bp.classList.remove('hide'); return; }
   document.getElementById('apDoor').textContent=bound;
   const did=deviceId();
   let status='none';
   try{ const r=await S.scannerStatus(bound,did); status=(r&&r.status)||'none'; }catch(e){ status='none'; }
+  apLastStatus=status;
   if(status==='approved'){ ui.classList.remove('hide'); document.getElementById('doorName').textContent=bound; return; }
+  if(status==='denied'){ dn.classList.remove('hide'); document.getElementById('dnDoor').textContent=bound; startApPoll(did); return; }
   ap.classList.remove('hide');
   if(status==='pending'){ showWaiting(); startApPoll(did); } else { showRequest(); }
 }
@@ -679,21 +690,26 @@ async function requestScanner(){
   catch(e){ toast('Server error'); }
 }
 function startApPoll(did){ stopApPoll(); apPoll=setInterval(async()=>{
-  try{ const r=await S.scannerStatus(bound,did); if(r&&r.status==='approved'){ stopApPoll(); setupScan(); } }catch(e){}
+  try{ const r=await S.scannerStatus(bound,did); const st=(r&&r.status)||'none';
+    if(st!==apLastStatus){ apLastStatus=st; setupScan(); } }catch(e){}
 }, 4000); }
 async function renderScanners(){
   const box=document.getElementById('scannerList'); if(!box) return;
   let list=[]; try{ list=(await S.listScanners(mng))||[]; }catch(e){ return; }
   if(!list.length){ box.innerHTML='<span class="empty">No scanner devices yet. Open your scanner link on a device to request access.</span>'; return; }
-  box.innerHTML=list.map(d=>`<div class="prow">
-    <div style="min-width:0"><div class="nm">${esc(d.name||'Scanner')}</div>
-    <div class="cd">${d.status==='approved'?'can scan':'waiting for approval'}</div></div>
-    <div class="spacer"></div><span class="pill ${d.status==='approved'?'active':'expired'}">${d.status}</span>
-    <div class="acts">${d.status!=='approved'?`<button class="btn sm" onclick="approveScanner('${d.id}')">Approve</button>`:''}
-    <button class="btn sm ghost danger" onclick="revokeScanner('${d.id}')">${d.status==='approved'?'Revoke':'Reject'}</button></div></div>`).join('');
+  box.innerHTML=list.map(d=>{
+    const cls = d.status==='approved'?'active':(d.status==='denied'?'revoked':'expired');
+    const sub = d.status==='approved'?'can scan':(d.status==='denied'?'denied — blocked':'waiting for approval');
+    let acts='';
+    if(d.status==='pending'){ acts=`<button class="btn sm" onclick="approveScanner('${d.id}')">Approve</button><button class="btn sm ghost danger" onclick="denyScanner('${d.id}')">Deny</button>`; }
+    else if(d.status==='approved'){ acts=`<button class="btn sm ghost danger" onclick="denyScanner('${d.id}')">Deny</button>`; }
+    else { acts=`<button class="btn sm" onclick="approveScanner('${d.id}')">Approve</button><button class="btn sm ghost danger" onclick="removeScanner('${d.id}')">Remove</button>`; }
+    return `<div class="prow"><div style="min-width:0"><div class="nm">${esc(d.name||'Scanner')}</div><div class="cd">${sub}</div></div><div class="spacer"></div><span class="pill ${cls}">${d.status}</span><div class="acts">${acts}</div></div>`;
+  }).join('');
 }
 async function approveScanner(did){ try{ await S.approveScanner(mng,did); toast('Scanner approved'); renderScanners(); }catch(e){ toast('Error'); } }
-async function revokeScanner(did){ try{ await S.revokeScanner(mng,did); toast('Scanner removed'); renderScanners(); }catch(e){ toast('Error'); } }
+async function denyScanner(did){ try{ await S.revokeScanner(mng,did); toast('Scanner denied'); renderScanners(); }catch(e){ toast('Error'); } }
+async function removeScanner(did){ try{ await S.removeScanner(mng,did); toast('Scanner removed'); renderScanners(); }catch(e){ toast('Error'); } }
 function unbindDoor(){ stopCamera(); stopApPoll(); bound=null; ldel('passlet_door'); setupScan(); }
 function scannerLink(){ return location.origin+location.pathname+'#door='+enc(mng); }
 function renderScanner(){

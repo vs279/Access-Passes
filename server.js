@@ -256,6 +256,12 @@ app.post('/s/:code/scanner/approve', requireOwner, async (req, res) => {
   res.json({ ok:true });
 });
 app.post('/s/:code/scanner/revoke', requireOwner, async (req, res) => {
+  const c = scode(req.params.code); const k = 'scanners:' + c; const list = (await store.get(k)) || [];
+  const dev = list.find(d => d.id === String((req.body && req.body.deviceId) || '').trim());
+  if (dev) { dev.status = 'denied'; await store.set(k, list); }
+  res.json({ ok:true });
+});
+app.post('/s/:code/scanner/remove', requireOwner, async (req, res) => {
   const c = scode(req.params.code); const k = 'scanners:' + c;
   let list = (await store.get(k)) || [];
   list = list.filter(d => d.id !== String((req.body && req.body.deviceId) || '').trim());
