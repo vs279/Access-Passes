@@ -67,6 +67,8 @@
     padding:12px 14px;font-size:14px;outline:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
   .field::placeholder{color:var(--faint)}
   .field:focus{border-color:rgba(255,194,77,.6)}
+  select.field{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,.06) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238d9aa8'/%3E%3C/svg%3E") no-repeat right 14px center;padding-right:34px}
+  select.field option{color:#10121a}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   @media(max-width:520px){.grid2{grid-template-columns:1fr}}
   .mt12{margin-top:12px}.mt16{margin-top:16px}
@@ -156,6 +158,11 @@
   .email-preview .lnk{color:var(--amber);word-break:break-all;font-family:var(--mono);font-size:10.5px}
   .m-row{display:flex;gap:8px;flex-wrap:wrap}.m-row .btn{flex:1;min-width:110px}
   .subnote{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:12px}
+  .steps{list-style:none;counter-reset:s;margin:0 0 18px;padding:14px 0 0;border-top:1px solid rgba(255,255,255,.08)}
+  .steps li{counter-increment:s;position:relative;padding:0 0 13px 36px;font-size:13px;color:var(--muted);line-height:1.55}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:-1px;width:23px;height:23px;border-radius:50%;background:rgba(255,194,77,.16);color:var(--amber);font-family:var(--mono);font-size:11px;display:grid;place-items:center;border:1px solid rgba(255,194,77,.3)}
+  .steps b{color:var(--text);font-weight:600}
+  .steps .note{color:var(--faint);font-size:11.5px}
 
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--gfill);backdrop-filter:var(--blur);
     border:1px solid var(--gedge);color:var(--text);padding:12px 20px;border-radius:100px;font-size:13px;opacity:0;transition:.25s;z-index:60;pointer-events:none}
@@ -180,6 +187,20 @@
       <div class="prompt" style="margin-bottom:14px">Scanner not set up</div>
       <p style="color:var(--muted);font-size:13px;line-height:1.6">Open your space's <b>scanner link</b> on this device to make it a door for that space. You'll find the link and its QR in your dashboard under <b>Door scanner</b>.</p>
       <button class="btn ghost full mt16" onclick="openGate('login')">Log in to get the link</button>
+    </div>
+
+    <div id="approvalBox" class="bindbox hide">
+      <div class="prompt" style="margin-bottom:14px">Door: <b id="apDoor"></b></div>
+      <div id="apRequest">
+        <p style="color:var(--muted);font-size:13px;line-height:1.6;margin-bottom:14px">This scanner needs the host's approval before it can let anyone in.</p>
+        <input class="field" id="apName" placeholder="Name this device (e.g. Front door iPad)" style="text-align:center" />
+        <button class="btn primary full mt12" onclick="requestScanner()">Request access</button>
+      </div>
+      <div id="apWaiting" class="hide">
+        <div style="font-size:34px;margin-bottom:10px">⏳</div>
+        <p style="color:var(--muted);font-size:13px;line-height:1.6">Waiting for the host to approve “<b id="apNameShow"></b>”…</p>
+        <div class="subnote" style="margin-top:10px">This updates automatically once approved.</div>
+      </div>
     </div>
 
     <div id="scanUI" class="scan hide" style="padding-top:0">
@@ -208,9 +229,16 @@
       <input class="field" id="gCode" placeholder="e.g. downtown-gym" autocomplete="off" />
       <label class="mt12">Password</label>
       <input class="field" id="gPass" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')submitGate()"/>
+      <div id="agreeWrap" class="hide" style="margin:8px 2px 4px;display:flex;align-items:flex-start;gap:10px">
+        <input type="checkbox" id="gAgree" style="margin-top:2px;width:18px;height:18px;accent-color:#ffc24d;flex:none" />
+        <label for="gAgree" style="margin:0;font-size:12.5px;color:var(--muted);line-height:1.5">I comply with the terms and conditions.</label>
+      </div>
       <div class="err" id="gErr"></div>
       <button class="btn primary full" id="gBtn" onclick="submitGate()">Log in</button>
       <button class="btn ghost full mt12" onclick="go('scan')">← Back to scanner</button>
+      <div class="subnote" style="text-align:center;margin-top:16px;line-height:1.6;border-top:1px solid rgba(255,255,255,.08);padding-top:14px">
+        <b style="color:var(--muted)">Terms &amp; conditions</b><br>You and your customers use this app at your risk.
+      </div>
     </div>
   </section>
 
@@ -227,6 +255,24 @@
         <div><label>Expires <span style="color:var(--faint)">(optional)</span></label><input class="field" id="iExpiry" type="date" /></div>
         <div><label>Max uses <span style="color:var(--faint)">(optional)</span></label><input class="field" id="iUses" type="number" min="1" placeholder="Unlimited" /></div>
       </div>
+      <div class="grid2 mt12">
+        <div><label>Auto-renew</label>
+          <select class="field" id="iRenew" onchange="document.getElementById('iRenewWrap').style.display=this.value==='period'?'':'none'">
+            <option value="off">Off</option>
+            <option value="period">For a set period</option>
+          </select>
+        </div>
+        <div id="iRenewWrap" style="display:none"><label>Renew for</label>
+          <div style="display:flex;gap:8px">
+            <input class="field" id="iRenewCount" type="number" min="1" placeholder="e.g. 6" style="flex:1" />
+            <select class="field" id="iRenewUnit" style="flex:1">
+              <option value="weeks">weeks</option>
+              <option value="months">months</option>
+              <option value="years">years</option>
+            </select>
+          </div></div>
+      </div>
+      <div class="subnote" style="margin-top:8px">Auto-renew keeps the pass working — it renews the expiry &amp; uses automatically, for the weeks you set or forever.</div>
       <button class="btn primary full mt16" onclick="issueCard()">Create &amp; email pass</button>
     </div>
 
@@ -238,6 +284,17 @@
     <div class="card glass">
       <h3>Your door</h3>
       <div class="sub">Shelly relay &middot; unlocks on a granted scan</div>
+      <button class="btn ghost sm" id="guideBtn" onclick="toggleGuide()" style="margin-bottom:14px">How to connect a Shelly ▾</button>
+      <ol class="steps hide" id="guide">
+        <li>Buy a <b>Shelly Plus 1</b> relay and an <b>electric strike</b> (or maglock) rated for your door, plus its power supply.</li>
+        <li>Wire the strike's power through the Shelly's relay contacts (terminals <b>O</b> and <b>I</b>). <span class="note">Low-voltage work — get help if unsure. Entrance locks may need a licensed installer and must open in a power cut / emergency.</span></li>
+        <li>In the <b>Shelly app</b>, add the device to your <b>Wi-Fi</b>.</li>
+        <li>Open the relay settings and set <b>Auto-OFF to ~3 seconds</b>, so one “on” buzzes the door then re-locks.</li>
+        <li>Turn on <b>Cloud</b> for the device.</li>
+        <li>From the Shelly app, collect three things: <b>Cloud server</b> (User Settings → <i>Authorization cloud key</i>, e.g. <span class="note">https://shelly-1-eu.shelly.cloud</span>), <b>Device ID</b> (device → <i>Device info</i>), and <b>Cloud auth key</b>.</li>
+        <li>Paste them into the fields below and tap <b>Save door</b> — it checks the Shelly is real before saving.</li>
+        <li>Tap <b>Test unlock</b> to hear it click.</li>
+      </ol>
       <label>Shelly cloud server</label>
       <input class="field" id="dServer" placeholder="https://shelly-1-eu.shelly.cloud" />
       <div class="grid2 mt12">
@@ -265,6 +322,12 @@
     </div>
 
     <div class="card glass">
+      <h3>Approved scanners</h3>
+      <div class="sub">Devices allowed to scan &middot; approve new requests here</div>
+      <div class="plist" id="scannerList"></div>
+    </div>
+
+    <div class="card glass">
       <h3>Door log</h3><div class="sub">Scans at this space</div>
       <div class="log" id="logList"></div>
       <div class="mt12"><button class="btn sm ghost danger" onclick="clearLog()">Clear log</button></div>
@@ -278,13 +341,16 @@
 
   <!-- PASS -->
   <section id="v-pass" class="passview hide">
-    <div class="passcard">
-      <div class="facility">PASSLET</div>
-      <h2 id="pvName">Guest</h2>
-      <div class="role" id="pvRole">Access pass</div>
-      <div class="qr" id="pvQR"></div>
-      <div class="codeText" id="pvCode"></div>
-      <div class="foot">Show this at the door and scan to enter. Keep it private.</div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:16px;width:100%">
+      <div class="passcard">
+        <div class="facility">PASSLET</div>
+        <h2 id="pvName">Guest</h2>
+        <div class="role" id="pvRole">Access pass</div>
+        <div class="qr" id="pvQR"></div>
+        <div class="codeText" id="pvCode"></div>
+        <div class="foot">Show this at the door and scan to enter. Keep it private.</div>
+      </div>
+      <button class="btn" onclick="printPassView()">🖨 Print pass</button>
     </div>
   </section>
 </main>
@@ -299,7 +365,7 @@
       <div id="mBody"></div><div class="lnk" id="mLink"></div>
     </div>
     <div class="m-row"><button class="btn primary" onclick="sendEmail()">📧 Send email</button><button class="btn" onclick="copyLink()">Copy link</button></div>
-    <div class="m-row mt12"><button class="btn" onclick="downloadQR()">Download</button><button class="btn ghost" onclick="closeModal()">Done</button></div>
+    <div class="m-row mt12"><button class="btn" onclick="printCurrent()">🖨 Print</button><button class="btn" onclick="downloadQR()">Download</button><button class="btn ghost" onclick="closeModal()">Done</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -310,40 +376,49 @@
 // If your Render service has a different address, change it here.
 const BACKEND = { url: "https://access-passes.onrender.com" };
 const enc = encodeURIComponent;
-async function api(path, method='GET', body, tries=0){
+async function api(path, method='GET', body, token, tries=0){
+  let res;
   try{
-    const res = await fetch(BACKEND.url.replace(/\/+$/,'')+path, {method,
-      headers:{'Content-Type':'application/json'}, body: body!==undefined?JSON.stringify(body):undefined});
-    if(!res.ok){
-      if(res.status>=500 && tries<20){ if(tries===0) toast('Waking the server… up to a minute'); await sleep(3000); return api(path,method,body,tries+1); }
-      throw new Error('API '+res.status);
-    }
-    const t=await res.text(); return t?JSON.parse(t):null;
+    const headers={'Content-Type':'application/json'};
+    if(token) headers['X-Owner-Token']=token;
+    res = await fetch(BACKEND.url.replace(/\/+$/,'')+path, {method, headers, body: body!==undefined?JSON.stringify(body):undefined});
   }catch(e){
-    if(tries<20){ if(tries===0) toast('Waking the server… up to a minute'); await sleep(3000); return api(path,method,body,tries+1); }
+    if(tries<20){ if(tries===0) toast('Waking the server… up to a minute'); await sleep(3000); return api(path,method,body,token,tries+1); }
     throw e;
   }
+  if(!res.ok){
+    if(res.status>=500 && tries<20){ if(tries===0) toast('Waking the server… up to a minute'); await sleep(3000); return api(path,method,body,token,tries+1); }
+    throw new Error('API '+res.status);
+  }
+  const t=await res.text(); return t?JSON.parse(t):null;
 }
 const S = {
   create:(c,p)=>api(`/s/${enc(c)}/create`,'POST',{pass:p}),
   login:(c,p)=>api(`/s/${enc(c)}/login`,'POST',{pass:p}),
   exists:(c)=>api(`/s/${enc(c)}/exists`),
-  getCards:(c)=>api(`/s/${enc(c)}/cards`),
-  setCards:(c,a)=>api(`/s/${enc(c)}/cards`,'PUT',a),
-  getLog:(c)=>api(`/s/${enc(c)}/log`),
-  addLog:(c,e)=>api(`/s/${enc(c)}/log`,'POST',e),
-  clearLog:(c)=>api(`/s/${enc(c)}/log`,'DELETE'),
-  getDoor:(c)=>api(`/s/${enc(c)}/door`),
-  setDoor:(c,d)=>api(`/s/${enc(c)}/door`,'PUT',d),
-  unlock:(c)=>api(`/s/${enc(c)}/unlock`,'POST'),
+  scan:(c,code,did)=>api(`/s/${enc(c)}/scan`,'POST',{code,deviceId:did}),
+  registerScanner:(c,did,name)=>api(`/s/${enc(c)}/scanner/register`,'POST',{deviceId:did,name}),
+  scannerStatus:(c,did)=>api(`/s/${enc(c)}/scanner/status`,'POST',{deviceId:did}),
+  listScanners:(c)=>api(`/s/${enc(c)}/scanners`,'GET',undefined,mngToken),
+  approveScanner:(c,did)=>api(`/s/${enc(c)}/scanner/approve`,'POST',{deviceId:did},mngToken),
+  revokeScanner:(c,did)=>api(`/s/${enc(c)}/scanner/revoke`,'POST',{deviceId:did},mngToken),
+  getCards:(c)=>api(`/s/${enc(c)}/cards`,'GET',undefined,mngToken),
+  setCards:(c,a)=>api(`/s/${enc(c)}/cards`,'PUT',a,mngToken),
+  getLog:(c)=>api(`/s/${enc(c)}/log`,'GET',undefined,mngToken),
+  clearLog:(c)=>api(`/s/${enc(c)}/log`,'DELETE',undefined,mngToken),
+  getDoor:(c)=>api(`/s/${enc(c)}/door`,'GET',undefined,mngToken),
+  setDoor:(c,d)=>api(`/s/${enc(c)}/door`,'PUT',d,mngToken),
+  unlock:(c)=>api(`/s/${enc(c)}/unlock`,'POST',undefined,mngToken),
+  setpass:(c,next)=>api(`/s/${enc(c)}/setpass`,'POST',{next},mngToken),
 };
 /* local persistence for the bound scanner door (real site) */
 function lget(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
 function lset(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 function ldel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+function deviceId(){ let d=lget('passlet_device'); if(!d){ d='dev_'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); lset('passlet_device',d); } return d; }
 
 /* ============ state ============ */
-let mng=null, mngPass=null;   // managed space (logged in) + its password
+let mng=null, mngToken=null, mngPass=null;   // managed space + its owner token
 let cards=[], log=[];    // managed space data
 let bound=null;          // scanner's bound space
 let scanCards=[];        // bound space passes
@@ -356,6 +431,7 @@ const scode=s=>(s||'').trim().toLowerCase();
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const id=()=>Math.random().toString(36).slice(2,9);
 const newcode=()=>{const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let x='PL';for(let i=0;i<8;i++)x+=s[Math.floor(Math.random()*s.length)];return x;};
+const fmtDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove('show'),2200);}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
@@ -366,7 +442,6 @@ async function boot(){
   if(p.pass){ showPass(p); return; }
   if(p.door){ bound=scode(p.door); lset('passlet_door',bound); }
   else bound=lget('passlet_door');
-  if(!lget('passlet_demo_purged')){ api('/s/demo/delete','POST',{pass:'passlet2026'}).then(()=>lset('passlet_demo_purged','1')).catch(()=>{}); }
   go('scan');
 }
 
@@ -376,11 +451,11 @@ function go(view){
   if(view!=='scan') stopCamera();
   document.getElementById('topbar').classList.toggle('hide', view==='pass');
   const tr=document.getElementById('topRight'), sys=document.getElementById('topSys'); tr.innerHTML='';
-  stopPoll();
+  stopPoll(); stopApPoll();
   if(view==='scan'){ sys.textContent='Door terminal'; resetTerminal(); setupScan();
     tr.innerHTML='<button class="btn sm ghost" onclick="openGate(\'login\')">Log in</button><button class="btn sm primary" onclick="openGate(\'create\')">Create space</button>'; }
   if(view==='gate'){ sys.textContent='Space access'; tr.innerHTML='<button class="btn sm ghost" onclick="go(\'scan\')">← Scanner</button>'; }
-  if(view==='dash'){ sys.textContent='Space · '+esc(mng); renderCards(); renderLog(); loadDoor(); renderScanner(); startPoll('dash');
+  if(view==='dash'){ sys.textContent='Space · '+esc(mng); renderCards(); renderLog(); loadDoor(); renderScanner(); renderScanners(); startPoll('dash');
     tr.innerHTML='<button class="btn sm ghost" onclick="go(\'scan\')">Scanner</button><button class="btn sm" onclick="signOut()">Sign out</button>'; }
   if(view!=='pass' && !parseHash().pass) location.hash='';
 }
@@ -391,6 +466,8 @@ function openGate(mode){ gateMode=mode;
   document.getElementById('authHint').textContent = mode==='create'?'Pick a space code and a password.':'Enter your space code and password.';
   document.getElementById('gBtn').textContent = mode==='create'?'Create space':'Log in';
   document.getElementById('gErr').textContent=''; document.getElementById('gPass').value='';
+  document.getElementById('agreeWrap').classList.toggle('hide', mode!=='create');
+  document.getElementById('gAgree').checked=false;
   go('gate');
 }
 async function submitGate(){
@@ -398,21 +475,23 @@ async function submitGate(){
   const p=document.getElementById('gPass').value;
   const err=document.getElementById('gErr');
   if(!c||!p){ err.textContent='Enter a code and password.'; return; }
+  if(gateMode==='create' && !document.getElementById('gAgree').checked){ err.textContent='Please tick the terms & conditions box to continue.'; return; }
   err.textContent='…';
   try{
+    let r;
     if(gateMode==='create'){
-      const r=await S.create(c,p);
+      r=await S.create(c,p);
       if(!r||!r.ok){ err.textContent = r&&r.error==='exists'?'That space code is taken.':'Could not create.'; return; }
     }else{
-      const r=await S.login(c,p);
+      r=await S.login(c,p);
       if(!r||!r.ok){ err.textContent = r&&r.error==='nospace'?'No space with that code.':'Wrong code or password.'; return; }
     }
-    mng=c; mngPass=p; err.textContent='';
+    mng=c; mngToken=r.token; mngPass=p; err.textContent='';
     cards=await S.getCards(c); log=await S.getLog(c);
     go('dash');
   }catch(e){ err.textContent='Server unreachable — try again.'; }
 }
-function signOut(){ mng=null; cards=[]; log=[]; go('scan'); }
+function signOut(){ mng=null; mngToken=null; cards=[]; log=[]; go('scan'); }
 
 /* ============ issue / manage passes ============ */
 function statusOf(c){
@@ -426,13 +505,27 @@ async function issueCard(){
   const expiry=document.getElementById('iExpiry').value||'';
   const usesRaw=document.getElementById('iUses').value.trim();
   const maxUses=usesRaw?Math.max(1,parseInt(usesRaw,10)||1):null;
+  const renewMode=document.getElementById('iRenew').value;
+  let renewCount=null, renewUnit=null, renewUntil=null;
+  if(renewMode==='period'){
+    renewCount=Math.max(1,parseInt(document.getElementById('iRenewCount').value,10)||1);
+    renewUnit=document.getElementById('iRenewUnit').value;
+    const nd=new Date();
+    if(renewUnit==='weeks') nd.setDate(nd.getDate()+renewCount*7);
+    else if(renewUnit==='months') nd.setMonth(nd.getMonth()+renewCount);
+    else nd.setFullYear(nd.getFullYear()+renewCount);
+    renewUntil=nd.getTime();
+  }
   if(!name||!email){ toast('Add a guest name and email.'); return; }
   const mid=v=>{const x=new Date(v);x.setHours(0,0,0,0);return x.getTime();};
-  const durationDays=expiry?Math.max(1,Math.round((mid(expiry+'T00:00:00')-mid(Date.now()))/86400000)):null;
+  let exp=expiry;
+  if(renewMode!=='off' && !exp){ const nd=new Date(); nd.setHours(0,0,0,0); nd.setDate(nd.getDate()+7); exp=fmtDate(nd); } // weekly cycle by default
+  const durationDays=exp?Math.max(1,Math.round((mid(exp+'T00:00:00')-mid(Date.now()))/86400000)):null;
   let c; do{c=newcode();}while(cards.some(x=>x.code===c));
-  const card={id:id(),name,email,code:c,expiry,maxUses,used:0,durationDays,created:Date.now(),sent:false};
+  const card={id:id(),name,email,code:c,expiry:exp,maxUses,used:0,durationDays,autoRenew:renewMode,renewCount,renewUnit,renewUntil,created:Date.now(),sent:false};
   cards.unshift(card); await S.setCards(mng,cards);
-  ['iName','iEmail','iExpiry','iUses'].forEach(x=>document.getElementById(x).value='');
+  ['iName','iEmail','iExpiry','iUses','iRenewCount'].forEach(x=>document.getElementById(x).value='');
+  document.getElementById('iRenew').value='off'; document.getElementById('iRenewWrap').style.display='none';
   renderCards(); openModal(card);
 }
 function passLink(card){ return location.origin+location.pathname+'#pass='+enc(card.code)+'&n='+enc(card.name); }
@@ -463,6 +556,28 @@ function downloadQR(){
   const src=cv?cv.toDataURL('image/png'):(im?im.src:''); if(!src) return;
   const a=document.createElement('a'); a.href=src; a.download=(current.name.replace(/[^\w]+/g,'_')||'pass')+'_qr.png'; a.click();
 }
+function printCard(name, code){
+  const tmp=document.createElement('div');
+  try{ new QRCode(tmp,{text:code,width:320,height:320,correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+  const cv=tmp.querySelector('canvas'), im=tmp.querySelector('img');
+  const src=cv?cv.toDataURL('image/png'):(im?im.src:'');
+  const w=window.open('','_blank','width=420,height=640');
+  if(!w){ toast('Allow pop-ups to print'); return; }
+  w.document.write('<html><head><title>Passlet pass</title><style>'+
+    'body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;padding:40px;color:#10121a}'+
+    '.facility{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#6a7686}'+
+    'h2{font-size:22px;margin:6px 0 2px}.role{color:#55616f;font-size:13px;margin-bottom:20px}'+
+    'img{width:300px;height:300px}.code{font-family:monospace;letter-spacing:3px;margin-top:12px;font-size:14px}'+
+    '.foot{font-size:11px;color:#6a7686;margin-top:18px}</style></head><body>'+
+    '<div class="facility">PASSLET</div><h2>'+esc(name)+'</h2><div class="role">Access pass</div>'+
+    '<img src="'+src+'"/><div class="code">'+esc(code)+'</div>'+
+    '<div class="foot">Show this at the door and scan to enter. Keep it private.</div>'+
+    '</body></html>');
+  w.document.close();
+  setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} }, 350);
+}
+function printCurrent(){ if(current) printCard(current.name, current.code); }
+function printPassView(){ printCard(document.getElementById('pvName').textContent, document.getElementById('pvCode').textContent); }
 function reopen(cid){ const c=cards.find(x=>x.id===cid); if(c) openModal(c); }
 async function renewCard(cid){
   const c=cards.find(x=>x.id===cid); if(!c) return;
@@ -483,7 +598,7 @@ function renderCards(){
   if(!cards.length){ box.innerHTML='<span class="empty">No passes yet.</span>'; return; }
   box.innerHTML=cards.map(c=>{const st=statusOf(c);return `<div class="prow">
     <div style="min-width:0"><div class="nm">${esc(c.name)}</div><div class="em">${esc(c.email)}</div>
-    <div class="cd">${c.code}${c.expiry?' · exp '+c.expiry:''}${c.maxUses?' · '+(c.used||0)+'/'+c.maxUses+' uses':''}</div></div>
+    <div class="cd">${c.code}${c.expiry?' · exp '+c.expiry:''}${c.maxUses?' · '+(c.used||0)+'/'+c.maxUses+' uses':''}${c.autoRenew==='forever'?' · ↻ forever':((c.autoRenew&&c.autoRenew!=='off')?' · ↻ '+(c.renewCount?c.renewCount+' '+c.renewUnit:(c.renewWeeks+'w')):'')}</div></div>
     <div class="spacer"></div><span class="pill ${st}">${st}</span>${c.sent?'<span class="pill sent">emailed</span>':''}
     <div class="acts"><button class="btn sm" onclick="reopen('${c.id}')">Pass</button>
     <button class="btn sm" onclick="renewCard('${c.id}')">Renew</button>
@@ -499,6 +614,8 @@ function renderLog(){
 }
 
 /* ============ door settings (managed space) ============ */
+function toggleGuide(){ const g=document.getElementById('guide'), b=document.getElementById('guideBtn');
+  const hidden=g.classList.toggle('hide'); b.textContent = hidden ? 'How to connect a Shelly ▾' : 'Hide steps ▴'; }
 async function loadDoor(){
   const st=document.getElementById('doorStatus'); st.textContent='';
   try{
@@ -526,22 +643,58 @@ async function testDoor(){
 async function savePass(){
   const v=document.getElementById('setPass').value; if(!v){ toast('Enter a new password'); return; }
   try{
-    const r=await api(`/s/${enc(mng)}/setpass`,'POST',{current:mngPass,next:v});
+    const r=await S.setpass(mng,v);
     if(r&&r.ok){ mngPass=v; document.getElementById('setPass').value=''; toast('Password changed'); }
     else toast('Could not change password');
   }catch(e){ toast('Server error'); }
 }
 
 /* ============ scanner (bound space) ============ */
+let apPoll=null;
+function stopApPoll(){ if(apPoll){ clearInterval(apPoll); apPoll=null; } }
 async function setupScan(){
-  const prompt=document.getElementById('bindPrompt'), ui=document.getElementById('scanUI');
-  if(!bound){ prompt.classList.remove('hide'); ui.classList.add('hide'); return; }
-  prompt.classList.add('hide'); ui.classList.remove('hide');
-  document.getElementById('doorName').textContent=bound;
-  try{ scanCards=await S.getCards(bound); }catch(e){ scanCards=[]; }
-  startPoll('scan');
+  stopApPoll();
+  const bp=document.getElementById('bindPrompt'), ap=document.getElementById('approvalBox'), ui=document.getElementById('scanUI');
+  bp.classList.add('hide'); ap.classList.add('hide'); ui.classList.add('hide');
+  if(!bound){ bp.classList.remove('hide'); return; }
+  document.getElementById('apDoor').textContent=bound;
+  const did=deviceId();
+  let status='none';
+  try{ const r=await S.scannerStatus(bound,did); status=(r&&r.status)||'none'; }catch(e){ status='none'; }
+  if(status==='approved'){ ui.classList.remove('hide'); document.getElementById('doorName').textContent=bound; return; }
+  ap.classList.remove('hide');
+  if(status==='pending'){ showWaiting(); startApPoll(did); } else { showRequest(); }
 }
-function unbindDoor(){ stopCamera(); bound=null; ldel('passlet_door'); setupScan(); }
+function showRequest(){ document.getElementById('apRequest').classList.remove('hide'); document.getElementById('apWaiting').classList.add('hide');
+  const nm=lget('passlet_device_name'); if(nm) document.getElementById('apName').value=nm; }
+function showWaiting(){ document.getElementById('apRequest').classList.add('hide'); document.getElementById('apWaiting').classList.remove('hide');
+  document.getElementById('apNameShow').textContent=lget('passlet_device_name')||'this device'; }
+async function requestScanner(){
+  const name=(document.getElementById('apName').value.trim())||'Scanner';
+  lset('passlet_device_name',name);
+  const did=deviceId();
+  try{ const r=await S.registerScanner(bound,did,name);
+    if(r&&r.ok){ if(r.status==='approved'){ setupScan(); return; } showWaiting(); startApPoll(did); }
+    else toast('Could not request access'); }
+  catch(e){ toast('Server error'); }
+}
+function startApPoll(did){ stopApPoll(); apPoll=setInterval(async()=>{
+  try{ const r=await S.scannerStatus(bound,did); if(r&&r.status==='approved'){ stopApPoll(); setupScan(); } }catch(e){}
+}, 4000); }
+async function renderScanners(){
+  const box=document.getElementById('scannerList'); if(!box) return;
+  let list=[]; try{ list=(await S.listScanners(mng))||[]; }catch(e){ return; }
+  if(!list.length){ box.innerHTML='<span class="empty">No scanner devices yet. Open your scanner link on a device to request access.</span>'; return; }
+  box.innerHTML=list.map(d=>`<div class="prow">
+    <div style="min-width:0"><div class="nm">${esc(d.name||'Scanner')}</div>
+    <div class="cd">${d.status==='approved'?'can scan':'waiting for approval'}</div></div>
+    <div class="spacer"></div><span class="pill ${d.status==='approved'?'active':'expired'}">${d.status}</span>
+    <div class="acts">${d.status!=='approved'?`<button class="btn sm" onclick="approveScanner('${d.id}')">Approve</button>`:''}
+    <button class="btn sm ghost danger" onclick="revokeScanner('${d.id}')">${d.status==='approved'?'Revoke':'Reject'}</button></div></div>`).join('');
+}
+async function approveScanner(did){ try{ await S.approveScanner(mng,did); toast('Scanner approved'); renderScanners(); }catch(e){ toast('Error'); } }
+async function revokeScanner(did){ try{ await S.revokeScanner(mng,did); toast('Scanner removed'); renderScanners(); }catch(e){ toast('Error'); } }
+function unbindDoor(){ stopCamera(); stopApPoll(); bound=null; ldel('passlet_door'); setupScan(); }
 function scannerLink(){ return location.origin+location.pathname+'#door='+enc(mng); }
 function renderScanner(){
   const link=scannerLink();
@@ -554,23 +707,10 @@ function copyScanLink(){ navigator.clipboard?.writeText(scannerLink()).then(()=>
 
 async function checkCode(raw){
   if(processing) return; const cc=norm(raw); if(!cc||!bound) return; processing=true;
-  try{ scanCards=await S.getCards(bound); }catch(e){}
-  const card=scanCards.find(x=>norm(x.code)===cc);
-  let result, who;
-  if(!card){ result='denied'; who='Pass not recognized'; }
-  else{
-    const st=statusOf(card);
-    if(st==='active'){ result='granted';
-      card.used=(card.used||0)+1; S.setCards(bound,scanCards);
-      const left=card.maxUses?(card.maxUses-card.used):null;
-      who=card.name+(left!==null?' · '+left+' use'+(left===1?'':'s')+' left':'');
-      S.unlock(bound).catch(()=>{});
-    }
-    else if(st==='expired'){ result='denied'; who=card.name+' · pass expired'; }
-    else{ result='denied'; who=card.name+' · no uses left'; }
-  }
+  let result='denied', who='Pass not recognized';
+  try{ const r=await S.scan(bound,cc,deviceId()); if(r){ result=r.granted?'granted':'denied'; who=r.who||who; } }
+  catch(e){ who='Server error'; }
   verdict(result,who);
-  S.addLog(bound,{t:Date.now(),result,name:card?card.name:'Unknown',code:cc}).catch(()=>{});
 }
 function verdict(result,who){
   const wrap=document.getElementById('ringWrap'),ov=document.getElementById('overlay'),oi=document.getElementById('ovIcon'),ro=document.getElementById('readout');
@@ -593,12 +733,11 @@ function resetTerminal(){
 function submitManual(){ const el=document.getElementById('manualCode'); checkCode(el.value); el.value=''; }
 
 /* ============ polling ============ */
-function startPoll(kind){ stopPoll();
+function startPoll(kind){ stopPoll(); if(kind!=='dash') return;
   poll=setInterval(async()=>{ try{
-    if(kind==='scan' && bound){ scanCards=await S.getCards(bound); }
-    if(kind==='dash' && mng){ cards=await S.getCards(mng); log=await S.getLog(mng);
-      if(!document.getElementById('v-dash').classList.contains('hide')){ renderCards(); renderLog(); } }
-  }catch(e){} }, kind==='scan'?3000:5000);
+    if(mng){ cards=await S.getCards(mng); log=await S.getLog(mng);
+      if(!document.getElementById('v-dash').classList.contains('hide')){ renderCards(); renderLog(); renderScanners(); } }
+  }catch(e){} }, 5000);
 }
 function stopPoll(){ if(poll){ clearInterval(poll); poll=null; } }
 
