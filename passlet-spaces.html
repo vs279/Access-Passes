@@ -164,6 +164,12 @@
   .steps li::before{content:counter(s);position:absolute;left:0;top:-1px;width:23px;height:23px;border-radius:50%;background:rgba(255,194,77,.16);color:var(--amber);font-family:var(--mono);font-size:11px;display:grid;place-items:center;border:1px solid rgba(255,194,77,.3)}
   .steps b{color:var(--text);font-weight:600}
   .steps .note{color:var(--faint);font-size:11.5px}
+  .steps details{margin-top:8px}
+  .steps summary{cursor:pointer;color:var(--amber);font-size:12.5px;list-style:none;user-select:none}
+  .steps summary::-webkit-details-marker{display:none}
+  .steps details ol{list-style:decimal;margin:8px 0 0;padding-left:20px}
+  .steps details li{counter-increment:none;padding:0 0 8px 0;font-size:12.5px;color:var(--muted);line-height:1.5}
+  .steps details li::before{content:none}
 
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--gfill);backdrop-filter:var(--blur);
     border:1px solid var(--gedge);color:var(--text);padding:12px 20px;border-radius:100px;font-size:13px;opacity:0;transition:.25s;z-index:60;pointer-events:none}
@@ -347,22 +353,44 @@
       </div>
       <div class="grid2 mt12"><button class="btn ghost sm" onclick="resetReaderKey()">Reset key</button><div></div></div>
       <div class="subnote" style="margin-top:10px">Keep this key secret — anything with it can open the door.</div>
-      <label class="mt12">Reader files (ready to run)</label>
-      <div class="grid2"><button class="btn primary" onclick="downloadReaderFile('tpl-reader','reader.py')">⬇ reader.py</button><button class="btn primary" onclick="downloadReaderFile('tpl-manage','manage.py')">⬇ manage.py</button></div>
-      <div class="subnote" style="margin-top:8px">These save with your space code and reader key already inside — no editing needed.</div>
+      <label class="mt12">Reader files</label>
+      <div class="grid2"><button class="btn primary" onclick="openFile('tpl-reader','reader.py')">reader.py</button><button class="btn primary" onclick="openFile('tpl-manage','manage.py')">manage.py</button></div>
+      <button class="btn full" style="margin-top:8px" onclick="openFile('tpl-readme','README.md')">README (setup guide)</button>
+      <div class="subnote" style="margin-top:8px">Tap a file, then <b>Copy</b> and paste it into a new file on your Pi. reader.py &amp; manage.py already have your details filled in.</div>
       <button class="btn ghost sm" id="readerGuideBtn" onclick="toggleReaderGuide()" style="margin-top:14px">How to set up the reader ▾</button>
       <ol class="steps hide" id="readerGuide">
-        <li><b>Buy these:</b> a Raspberry Pi (Pi 4, or Pi Zero W), your ACR122U reader, a microSD card (16GB+), a USB power supply, and a pack of <b>13.56 MHz</b> cards (NTAG215 or MIFARE). <span class="note">Pi 4 powers by USB-C; a Zero uses micro-USB and needs a micro-USB-to-USB OTG adapter for the reader.</span></li>
-        <li><b>Get the files:</b> tap <b>⬇ reader.py</b> and <b>⬇ manage.py</b> above — they save ready to run, already filled in with your details.</li>
-        <li><b>Prepare the Pi:</b> install <b>Raspberry Pi Imager</b> on your computer, write <b>Raspberry Pi OS Lite</b> to the SD card, and in Imager's settings switch on <b>Wi-Fi</b> and <b>SSH</b>. Put the card in the Pi and power it on.</li>
-        <li><b>Connect to it</b> from your computer: <span class="note">ssh USERNAME@raspberrypi.local</span> (the name/password you set in Imager).</li>
-        <li><b>Install the software</b> — paste these two lines: <span class="note">sudo apt update && sudo apt install -y pcscd libpcsclite-dev swig python3-pip</span> then <span class="note">pip3 install pyscard requests --break-system-packages</span></li>
-        <li><b>Fix the reader on Linux</b> (once): run <span class="note">sudo nano /etc/modprobe.d/blacklist-nfc.conf</span>, type three lines — <span class="note">blacklist pn533</span> / <span class="note">blacklist pn533_usb</span> / <span class="note">blacklist nfc</span> — save, then <span class="note">sudo reboot</span>. Plug the ACR122U into a USB port.</li>
-        <li><b>Put the two files on the Pi</b> (drag them over with an app like WinSCP, or paste them in). Nothing to edit — your details are already inside.</li>
-        <li><b>Assign a card:</b> in the app, open a pass → <b>Assign to a card</b>. On the Pi run <span class="note">python3 manage.py</span> and tap a card — it becomes that person's key.</li>
-        <li><b>Open the door:</b> on the Pi run <span class="note">python3 reader.py</span>. Tap an assigned card and it unlocks.</li>
+        <li><b>Get the parts:</b> a Raspberry Pi (Zero W, or Pi 4), the ACR122U NFC reader, an SD card, a fan to cool the Pi, a USB power supply, and 13.56 MHz NFC cards.</li>
+        <li><b>Clip the fan onto the Pi.</b></li>
+        <li><b>Set up the SD card:</b> put it in your computer and use the free <b>Raspberry Pi Imager</b> app to load <b>Raspberry Pi OS Lite</b> onto it. In Imager's settings, turn on <b>Wi-Fi</b> and <b>SSH</b> and set a username + password.</li>
+        <li><b>Put the SD card into the Pi.</b></li>
+        <li><b>Plug the NFC reader into the Pi</b> (any USB port).</li>
+        <li><b>Plug the Pi into power</b> to turn it on.</li>
+        <li><b>Connect to the Pi &amp; install the software.</b>
+          <details><summary>Show me exactly how ▾</summary>
+            <ol>
+              <li>On your computer open <b>Terminal</b> (Mac: Applications → Utilities → Terminal) or <b>PowerShell</b> (Windows: search it in the Start menu).</li>
+              <li>Type <span class="note">ssh USERNAME@raspberrypi.local</span> (use the username you set in Imager) and press Enter. If it asks to continue, type <span class="note">yes</span>. Type your password — it stays hidden as you type — and press Enter.</li>
+              <li>You're now on the Pi. Paste <span class="note">sudo apt update &amp;&amp; sudo apt install -y pcscd libpcsclite-dev swig python3-pip</span>, press Enter, type your password if asked, and wait for it to finish.</li>
+              <li>Paste <span class="note">pip3 install pyscard requests --break-system-packages</span> and press Enter.</li>
+              <li>One-time reader fix: paste <span class="note">sudo nano /etc/modprobe.d/blacklist-nfc.conf</span>, type three lines — <span class="note">blacklist pn533</span>, <span class="note">blacklist pn533_usb</span>, <span class="note">blacklist nfc</span> — then press Ctrl+O, Enter, Ctrl+X to save.</li>
+              <li>Restart: paste <span class="note">sudo reboot</span>. Wait about a minute, then connect again with the same ssh line from step 2.</li>
+            </ol>
+          </details>
+        </li>
+        <li><b>Put the two files on the Pi.</b>
+          <details><summary>Show me exactly how ▾</summary>
+            <ol>
+              <li>In this app: <b>Hardware reader</b> card → tap <b>reader.py</b> → tap <b>Copy</b>.</li>
+              <li>In your Pi window, type <span class="note">nano reader.py</span> and press Enter — a blank editor opens.</li>
+              <li>Paste the file (Mac: Cmd+V · Windows PowerShell: right-click). The code fills in.</li>
+              <li>Save it: press <b>Ctrl+O</b> then <b>Enter</b>. Close it: press <b>Ctrl+X</b>.</li>
+              <li>Do the same for the other file: tap <b>manage.py</b> here → <b>Copy</b>, then on the Pi <span class="note">nano manage.py</span> → paste → Ctrl+O, Enter, Ctrl+X.</li>
+            </ol>
+          </details>
+        </li>
+        <li><b>Use it:</b> make a pass → <b>Assign to a card</b>, run <span class="note">python3 manage.py</span> and tap a card. Then run <span class="note">python3 reader.py</span> — tap an assigned card to open the door.</li>
       </ol>
-      <div class="subnote" style="margin-top:8px">The README inside pi-reader.zip shows how to make the door reader start by itself when the Pi powers on.</div>
+      <div class="subnote" style="margin-top:8px">The README button has the exact commands and how to make it start on its own.</div>
     </div>
 
     <div class="card glass">
@@ -779,14 +807,26 @@ async function renderReaderKey(){
   try{ const r=await S.getReaderKey(mng); el.value=(r&&r.key)||''; }catch(e){ el.value='(sign in again)'; }
 }
 function copyReaderKey(){ const v=document.getElementById('readerKey').value; navigator.clipboard?.writeText(v).then(()=>toast('Reader key copied')).catch(()=>{}); }
-function downloadReaderFile(id, filename){
+let _fileName='file.txt';
+function openFile(id, filename){
   const el=document.getElementById(id); if(!el){ toast('Try again in a moment'); return; }
   const key=document.getElementById('readerKey').value||'PASTE-READER-KEY';
-  let t=el.textContent.split('__SERVER__').join(BACKEND.url).split('__SPACE__').join(mng||'your-space-code').split('__READERKEY__').join(key);
-  const type=filename.endsWith('.md')?'text/markdown':'text/x-python';
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([t],{type}));
-  a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  toast(filename+' downloaded');
+  const t=el.textContent.split('__SERVER__').join(BACKEND.url).split('__SPACE__').join(mng||'your-space-code').split('__READERKEY__').join(key).trim();
+  _fileName=filename;
+  document.getElementById('fileName').textContent=filename;
+  document.getElementById('fileHint').innerHTML='Tap <b>Copy</b>, then on your Pi run <span style="font-family:var(--mono)">nano '+filename+'</span> and paste.';
+  document.getElementById('fileText').value=t;
+  document.getElementById('fileBg').style.display='flex';
+}
+function closeFile(){ document.getElementById('fileBg').style.display='none'; }
+function copyFileText(){ const t=document.getElementById('fileText'); t.focus(); t.select();
+  const done=()=>toast('Copied — paste it into the file on your Pi');
+  if(navigator.clipboard){ navigator.clipboard.writeText(t.value).then(done).catch(()=>{ try{document.execCommand('copy');done();}catch(e){toast('Select all, then copy');} }); }
+  else { try{document.execCommand('copy');done();}catch(e){toast('Select all, then copy');} }
+}
+function downloadFileText(){ const t=document.getElementById('fileText').value; const type=_fileName.endsWith('.md')?'text/markdown':'text/x-python';
+  try{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([t],{type})); a.download=_fileName; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); toast('If nothing happened, use Copy instead'); }
+  catch(e){ toast('Use Copy instead'); }
 }
 async function resetReaderKey(){ if(!confirm('Reset the reader key? Your Pi will need the new key.'))return;
   try{ const r=await S.resetReaderKey(mng); document.getElementById('readerKey').value=(r&&r.key)||''; toast('New reader key'); }catch(e){ toast('Error'); } }
@@ -884,6 +924,152 @@ function showPass(p){
 }
 
 boot();
+</script>
+<script type="text/plain" id="tpl-readme">
+# Passlet door reader — Raspberry Pi 4 + ACR122U
+
+This turns a Raspberry Pi with an ACR122U USB reader into a door reader for Passlet.
+Tap a card → the Pi checks it with your server → the server opens your Shelly lock.
+
+You need: a Raspberry Pi (Pi 4 or Zero W), microSD card, USB power, the ACR122U reader, and 13.56 MHz cards.
+
+> **Tip:** if you downloaded `reader.py` and `manage.py` from your Passlet dashboard, your Server,
+> Space code and Reader key are **already filled in** — you can skip the editing in step 4.
+
+---
+
+## 1. Put the operating system on the SD card
+
+1. On your Windows or Mac computer, install **Raspberry Pi Imager** from raspberrypi.com/software.
+2. Insert the microSD card.
+3. In Imager: choose **Raspberry Pi OS Lite (64-bit)**, choose your SD card.
+4. Click the **gear / edit settings** icon before writing and set:
+   - a **hostname** (e.g. `passlet`)
+   - **enable SSH** (password login)
+   - your **Wi-Fi name + password**
+   - a username + password you'll remember
+5. Write it, then put the card in the Pi and power it on.
+
+## 2. Connect to the Pi
+
+From your computer's terminal (Mac) or PowerShell (Windows):
+
+```
+ssh yourusername@passlet.local
+```
+
+(If `passlet.local` doesn't work, find the Pi's IP in your router and use that.)
+
+## 3. Install the reader software
+
+```
+sudo apt update
+sudo apt install -y pcscd libpcsclite-dev swig python3-pip
+pip3 install pyscard requests --break-system-packages
+```
+
+**Important ACR122U fix (Linux):** some kernel modules grab the reader and stop it working.
+Blacklist them once:
+
+```
+echo -e "blacklist pn533\nblacklist pn533_usb\nblacklist nfc" | sudo tee /etc/modprobe.d/blacklist-nfc.conf
+sudo reboot
+```
+
+After it reboots, reconnect with SSH and plug in the ACR122U. Check it's seen:
+
+```
+sudo systemctl start pcscd
+pcsc_scan
+```
+
+You should see the ACR122U listed. Press Ctrl+C to exit.
+
+## 4. Add the reader files
+
+Copy `reader.py`, `write_card.py`, and `requirements.txt` onto the Pi (into your home folder).
+Easiest: use `scp` from your computer, or paste them with `nano reader.py` etc.
+
+Open `reader.py` and fill in the three values at the top:
+- `SERVER` — your Render URL (e.g. `https://access-passes.onrender.com`)
+- `SPACE` — your space code (lowercase)
+- `READER_KEY` — copy it from your Passlet dashboard → **Hardware reader → Reader key**
+
+## 5. Assign cards to members (no writing needed)
+
+Cards are identified by their built-in UID, so you never write anything to them — you just link a
+card to a member you created in the app.
+
+To assign a card:
+1. In the Passlet app, create the pass (name, expiry, uses as normal).
+2. Open that pass and tap **"Assign to a card"**.
+3. On the Pi, run the manager and tap the card:
+   ```
+   python3 manage.py
+   ```
+   It links that card to the member. Done.
+
+To free a card: in the app open the pass and tap **"Remove card"** — or run `manage.py`, and with a
+"Remove card" pending, tap the card. A freed card can be assigned to someone new.
+
+With nothing pending, running `manage.py` and tapping a card just tells you who it belongs to.
+
+## 6. Test the door
+
+```
+python3 reader.py
+```
+
+Tap an assigned card. You should see GRANTED/DENIED in the terminal, the reader beeps and flashes
+green/red, and a granted tap opens your Shelly. Expiry, uses, and auto-renew all apply exactly like
+the app scanner.
+
+## 7. Start automatically on boot
+
+```
+sudo nano /etc/systemd/system/passlet-reader.service
+```
+
+Paste (change the username/path if different):
+
+```
+[Unit]
+Description=Passlet door reader
+After=pcscd.service network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/yourusername/reader.py
+Restart=always
+User=yourusername
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then:
+
+```
+sudo systemctl enable --now passlet-reader.service
+```
+
+It now runs on every boot. Check it with:
+
+```
+systemctl status passlet-reader.service
+```
+
+---
+
+### Notes
+- Because we use the card's **UID**, almost any 13.56 MHz card works (MIFARE Classic or NTAG) — the
+  UID reads the same way on all of them, and nothing is written to the card.
+- `reader.py` = the door (leave it running / auto-start it). `manage.py` = assigning cards (run it
+  only when you're setting cards up).
+- The reader key is a secret — anyone with it can open the door. Reset it from the dashboard if needed.
+- All the real checks (valid pass, expiry, uses, auto-renew, logging) happen on the server, exactly
+  like the phone scanner. The Pi only reads the card's UID and passes it along.
+
 </script>
 <script type="text/plain" id="tpl-reader">
 #!/usr/bin/env python3
@@ -1059,5 +1245,17 @@ if __name__ == "__main__":
 
 </script>
 
+<div id="fileBg" style="display:none;position:fixed;inset:0;background:rgba(6,8,14,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:300;align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)closeFile()">
+  <div style="background:#141824;border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:20px;max-width:600px;width:100%;max-height:86vh;display:flex;flex-direction:column">
+    <h3 id="fileName" style="margin:0 0 4px;font-family:var(--mono)">reader.py</h3>
+    <div id="fileHint" style="color:var(--muted);font-size:12.5px;margin-bottom:12px">Tap Copy, then paste into a file on your Pi.</div>
+    <textarea id="fileText" readonly spellcheck="false" style="flex:1;min-height:240px;width:100%;box-sizing:border-box;background:rgba(0,0,0,.35);color:#dfe6f0;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px;font-family:var(--mono);font-size:11px;line-height:1.4;resize:none"></textarea>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn primary" style="flex:1" onclick="copyFileText()">Copy</button>
+      <button class="btn" style="flex:1" onclick="downloadFileText()">Download</button>
+      <button class="btn ghost" onclick="closeFile()">Close</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
