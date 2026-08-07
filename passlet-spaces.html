@@ -193,7 +193,7 @@
       <div class="prompt" style="margin-bottom:14px">Door: <b id="apDoor"></b></div>
       <div id="apRequest">
         <p style="color:var(--muted);font-size:13px;line-height:1.6;margin-bottom:14px">This scanner needs the host's approval before it can let anyone in.</p>
-        <input class="field" id="apName" placeholder="Name this device (e.g. Front door iPad)" style="text-align:center" />
+        <input class="field" id="apName" placeholder="Name this device (e.g. Front door device)" style="text-align:center" />
         <button class="btn primary full mt12" onclick="requestScanner()">Request access</button>
       </div>
       <div id="apWaiting" class="hide">
@@ -266,6 +266,7 @@
           <select class="field" id="iRenew" onchange="document.getElementById('iRenewWrap').style.display=this.value==='period'?'':'none'">
             <option value="off">Off</option>
             <option value="period">For a set period</option>
+            <option value="forever">Forever</option>
           </select>
         </div>
         <div id="iRenewWrap" style="display:none"><label>Renew for</label>
@@ -334,6 +335,30 @@
     </div>
 
     <div class="card glass">
+      <h3>Hardware reader</h3>
+      <div class="sub">For a Raspberry Pi + USB card reader (ACR122U)</div>
+      <label>Space code</label>
+      <input class="field" id="readerSpace" readonly style="font-family:var(--mono)" />
+      <label class="mt12">Reader key <span style="color:var(--faint)">(paste into the Pi script)</span></label>
+      <div style="display:flex;gap:8px">
+        <input class="field" id="readerKey" readonly style="font-family:var(--mono);font-size:11px" />
+        <button class="btn" onclick="copyReaderKey()">Copy</button>
+      </div>
+      <div class="grid2 mt12"><button class="btn ghost sm" onclick="resetReaderKey()">Reset key</button><div></div></div>
+      <div class="subnote" style="margin-top:10px">Keep this key secret — anything with it can open the door.</div>
+      <button class="btn ghost sm" id="readerGuideBtn" onclick="toggleReaderGuide()" style="margin-top:14px">How to set up the reader ▾</button>
+      <ol class="steps hide" id="readerGuide">
+        <li>Get the parts: a <b>Raspberry Pi</b> (Zero W or Pi 4), the <b>ACR122U</b> USB reader, a microSD card, USB power, and <b>13.56 MHz</b> cards.</li>
+        <li>Flash <b>Raspberry Pi OS Lite</b> onto the SD card with <b>Raspberry Pi Imager</b>. In its settings turn on <b>Wi-Fi</b> and <b>SSH</b>, then boot the Pi and connect to it over SSH.</li>
+        <li>Install the software: <span class="note">sudo apt install -y pcscd libpcsclite-dev swig python3-pip</span> then <span class="note">pip3 install pyscard requests --break-system-packages</span>. Blacklist the clashing NFC drivers (README), reboot, and plug in the reader.</li>
+        <li>Copy <b>reader.py</b> and <b>manage.py</b> onto the Pi and open them. Paste in your <b>Server URL</b>, plus the <b>Space code</b> and <b>Reader key</b> shown above.</li>
+        <li>Assign a card: create a pass, open it, tap <b>Assign to a card</b>, then run <span class="note">python3 manage.py</span> on the Pi and tap the card.</li>
+        <li>Run the door: <span class="note">python3 reader.py</span> — tap an assigned card to enter. Set it to start on boot (README step 7).</li>
+      </ol>
+      <div class="subnote" style="margin-top:8px">Full step-by-step is in the README inside the reader download (pi-reader.zip).</div>
+    </div>
+
+    <div class="card glass">
       <h3>Door log</h3><div class="sub">Scans at this space</div>
       <div class="log" id="logList"></div>
       <div class="mt12"><button class="btn sm ghost danger" onclick="clearLog()">Clear log</button></div>
@@ -372,6 +397,7 @@
     </div>
     <div class="m-row"><button class="btn primary" onclick="sendEmail()">📧 Send email</button><button class="btn" onclick="copyLink()">Copy link</button></div>
     <div class="m-row mt12"><button class="btn" onclick="printCurrent()">🖨 Print</button><button class="btn" onclick="downloadQR()">Download</button><button class="btn ghost" onclick="closeModal()">Done</button></div>
+    <div id="cardRow" style="margin-top:14px"></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -409,6 +435,10 @@ const S = {
   approveScanner:(c,did)=>api(`/s/${enc(c)}/scanner/approve`,'POST',{deviceId:did},mngToken),
   revokeScanner:(c,did)=>api(`/s/${enc(c)}/scanner/revoke`,'POST',{deviceId:did},mngToken),
   removeScanner:(c,did)=>api(`/s/${enc(c)}/scanner/remove`,'POST',{deviceId:did},mngToken),
+  getReaderKey:(c)=>api(`/s/${enc(c)}/reader-key`,'GET',undefined,mngToken),
+  resetReaderKey:(c)=>api(`/s/${enc(c)}/reader-key/reset`,'POST',undefined,mngToken),
+  cardPending:(c,mode,code)=>api(`/s/${enc(c)}/card-pending`,'POST',{mode,code},mngToken),
+  unlinkCard:(c,code)=>api(`/s/${enc(c)}/card-unlink`,'POST',{code},mngToken),
   getCards:(c)=>api(`/s/${enc(c)}/cards`,'GET',undefined,mngToken),
   setCards:(c,a)=>api(`/s/${enc(c)}/cards`,'PUT',a,mngToken),
   getLog:(c)=>api(`/s/${enc(c)}/log`,'GET',undefined,mngToken),
@@ -462,7 +492,7 @@ function go(view){
   if(view==='scan'){ sys.textContent='Door terminal'; resetTerminal(); setupScan();
     tr.innerHTML='<button class="btn sm ghost" onclick="openGate(\'login\')">Log in</button><button class="btn sm primary" onclick="openGate(\'create\')">Create space</button>'; }
   if(view==='gate'){ sys.textContent='Space access'; tr.innerHTML='<button class="btn sm ghost" onclick="go(\'scan\')">← Scanner</button>'; }
-  if(view==='dash'){ sys.textContent='Space · '+esc(mng); renderCards(); renderLog(); loadDoor(); renderScanner(); renderScanners(); startPoll('dash');
+  if(view==='dash'){ sys.textContent='Space · '+esc(mng); renderCards(); renderLog(); loadDoor(); renderScanner(); renderScanners(); renderReaderKey(); startPoll('dash');
     tr.innerHTML='<button class="btn sm ghost" onclick="go(\'scan\')">Scanner</button><button class="btn sm" onclick="signOut()">Sign out</button>'; }
   if(view!=='pass' && !parseHash().pass) location.hash='';
 }
@@ -535,7 +565,7 @@ async function issueCard(){
   document.getElementById('iRenew').value='off'; document.getElementById('iRenewWrap').style.display='none';
   renderCards(); openModal(card);
 }
-function passLink(card){ return location.origin+location.pathname+'#pass='+enc(card.code)+'&n='+enc(card.name); }
+function passLink(card){ return location.origin+location.pathname+'#pass='+enc(card.code)+'&n='+enc(card.name)+'&s='+enc(mng); }
 function emailBody(card){
   return `Hi ${card.name},\n\nHere's your Passlet access pass.\n\nOpen your pass:\n${passLink(card)}\n\nOr use this code at the door: ${card.code}\n${card.expiry?'\nExpires: '+card.expiry+'\n':''}${card.maxUses?'Uses allowed: '+card.maxUses+'\n':''}\nShow the QR code and scan it to get in. Keep it private.`;
 }
@@ -546,7 +576,29 @@ function openModal(card){
   document.getElementById('mBody').innerHTML=`Code <b style="color:var(--amber)">${card.code}</b>${card.expiry?' · expires '+esc(card.expiry):''}${card.maxUses?' · '+card.maxUses+' uses':''}<br>Pass link:`;
   document.getElementById('mLink').textContent=passLink(card);
   const q=document.getElementById('mQR'); q.innerHTML=''; try{ new QRCode(q,{text:card.code,width:150,height:150,correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+  renderCardRow();
   document.getElementById('modalBg').classList.add('show');
+}
+function renderCardRow(){
+  const el=document.getElementById('cardRow'); if(!el||!current) return;
+  if(current.uid){
+    el.innerHTML='<div class="subnote" style="margin-bottom:8px">🔑 Linked to a physical card.</div>'+
+      '<button class="btn ghost full danger" onclick="removeCard()">Remove card from this pass</button>';
+  }else{
+    el.innerHTML='<button class="btn full" onclick="assignCard()">🔑 Assign to a card</button>'+
+      '<div class="subnote" style="margin-top:8px">Then tap a card on your reader (run manage.py) to link it.</div>';
+  }
+}
+async function assignCard(){
+  try{ await S.cardPending(mng,'assign',current.code); toast('Now tap a card on your reader to link it to '+current.name); }
+  catch(e){ toast('Could not start assignment'); }
+}
+async function removeCard(){
+  if(!confirm('Remove the card link from '+current.name+'?')) return;
+  try{ await S.unlinkCard(mng,current.code); current.uid=null;
+    const i=cards.findIndex(x=>x.id===current.id); if(i>=0) delete cards[i].uid;
+    renderCardRow(); renderCards(); toast('Card removed'); }
+  catch(e){ toast('Error'); }
 }
 function closeModal(){ document.getElementById('modalBg').classList.remove('show'); }
 function sendEmail(){
@@ -563,7 +615,8 @@ function downloadQR(){
   const src=cv?cv.toDataURL('image/png'):(im?im.src:''); if(!src) return;
   const a=document.createElement('a'); a.href=src; a.download=(current.name.replace(/[^\w]+/g,'_')||'pass')+'_qr.png'; a.click();
 }
-function printCard(name, code){
+function printCard(name, code, space){
+  const fac=esc((space||'Passlet').toUpperCase());
   const tmp=document.createElement('div');
   try{ new QRCode(tmp,{text:code,width:320,height:320,correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
   const cv=tmp.querySelector('canvas'), im=tmp.querySelector('img');
@@ -576,15 +629,15 @@ function printCard(name, code){
     'h2{font-size:22px;margin:6px 0 2px}.role{color:#55616f;font-size:13px;margin-bottom:20px}'+
     'img{width:300px;height:300px}.code{font-family:monospace;letter-spacing:3px;margin-top:12px;font-size:14px}'+
     '.foot{font-size:11px;color:#6a7686;margin-top:18px}</style></head><body>'+
-    '<div class="facility">PASSLET</div><h2>'+esc(name)+'</h2><div class="role">Access pass</div>'+
+    '<div class="facility">'+fac+'</div><h2>'+esc(name)+'</h2><div class="role">Access pass</div>'+
     '<img src="'+src+'"/><div class="code">'+esc(code)+'</div>'+
     '<div class="foot">Show this at the door and scan to enter. Keep it private.</div>'+
     '</body></html>');
   w.document.close();
   setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} }, 350);
 }
-function printCurrent(){ if(current) printCard(current.name, current.code); }
-function printPassView(){ printCard(document.getElementById('pvName').textContent, document.getElementById('pvCode').textContent); }
+function printCurrent(){ if(current) printCard(current.name, current.code, mng); }
+function printPassView(){ printCard(document.getElementById('pvName').textContent, document.getElementById('pvCode').textContent, pvSpace); }
 function reopen(cid){ const c=cards.find(x=>x.id===cid); if(c) openModal(c); }
 async function renewCard(cid){
   const c=cards.find(x=>x.id===cid); if(!c) return;
@@ -605,7 +658,7 @@ function renderCards(){
   if(!cards.length){ box.innerHTML='<span class="empty">No passes yet.</span>'; return; }
   box.innerHTML=cards.map(c=>{const st=statusOf(c);return `<div class="prow">
     <div style="min-width:0"><div class="nm">${esc(c.name)}</div><div class="em">${esc(c.email)}</div>
-    <div class="cd">${c.code}${c.expiry?' · exp '+c.expiry:''}${c.maxUses?' · '+(c.used||0)+'/'+c.maxUses+' uses':''}${c.autoRenew==='forever'?' · ↻ forever':((c.autoRenew&&c.autoRenew!=='off')?' · ↻ '+(c.renewCount?c.renewCount+' '+c.renewUnit:(c.renewWeeks+'w')):'')}</div></div>
+    <div class="cd">${c.code}${c.expiry?' · exp '+c.expiry:''}${c.maxUses?' · '+(c.used||0)+'/'+c.maxUses+' uses':''}${c.autoRenew==='forever'?' · ↻ forever':((c.autoRenew&&c.autoRenew!=='off')?' · ↻ '+(c.renewCount?c.renewCount+' '+c.renewUnit:(c.renewWeeks+'w')):'')}${c.uid?' · 🔑 card':''}</div></div>
     <div class="spacer"></div><span class="pill ${st}">${st}</span>${c.sent?'<span class="pill sent">emailed</span>':''}
     <div class="acts"><button class="btn sm" onclick="reopen('${c.id}')">Pass</button>
     <button class="btn sm" onclick="renewCard('${c.id}')">Renew</button>
@@ -621,6 +674,8 @@ function renderLog(){
 }
 
 /* ============ door settings (managed space) ============ */
+function toggleReaderGuide(){ const g=document.getElementById('readerGuide'), b=document.getElementById('readerGuideBtn');
+  const hidden=g.classList.toggle('hide'); b.textContent = hidden ? 'How to set up the reader ▾' : 'Hide steps ▴'; }
 function toggleGuide(){ const g=document.getElementById('guide'), b=document.getElementById('guideBtn');
   const hidden=g.classList.toggle('hide'); b.textContent = hidden ? 'How to connect a Shelly ▾' : 'Hide steps ▴'; }
 async function loadDoor(){
@@ -660,6 +715,7 @@ async function savePass(){
 let apPoll=null;
 function stopApPoll(){ if(apPoll){ clearInterval(apPoll); apPoll=null; } }
 let apLastStatus=null;
+let pvSpace='';
 async function setupScan(){
   stopApPoll();
   const bp=document.getElementById('bindPrompt'), ap=document.getElementById('approvalBox'),
@@ -710,6 +766,14 @@ async function renderScanners(){
 async function approveScanner(did){ try{ await S.approveScanner(mng,did); toast('Scanner approved'); renderScanners(); }catch(e){ toast('Error'); } }
 async function denyScanner(did){ try{ await S.revokeScanner(mng,did); toast('Scanner denied'); renderScanners(); }catch(e){ toast('Error'); } }
 async function removeScanner(did){ try{ await S.removeScanner(mng,did); toast('Scanner removed'); renderScanners(); }catch(e){ toast('Error'); } }
+async function renderReaderKey(){
+  const el=document.getElementById('readerKey'); if(!el) return;
+  document.getElementById('readerSpace').value=mng;
+  try{ const r=await S.getReaderKey(mng); el.value=(r&&r.key)||''; }catch(e){ el.value='(sign in again)'; }
+}
+function copyReaderKey(){ const v=document.getElementById('readerKey').value; navigator.clipboard?.writeText(v).then(()=>toast('Reader key copied')).catch(()=>{}); }
+async function resetReaderKey(){ if(!confirm('Reset the reader key? Your Pi will need the new key.'))return;
+  try{ const r=await S.resetReaderKey(mng); document.getElementById('readerKey').value=(r&&r.key)||''; toast('New reader key'); }catch(e){ toast('Error'); } }
 function unbindDoor(){ stopCamera(); stopApPoll(); bound=null; ldel('passlet_door'); setupScan(); }
 function scannerLink(){ return location.origin+location.pathname+'#door='+enc(mng); }
 function renderScanner(){
@@ -723,21 +787,24 @@ function copyScanLink(){ navigator.clipboard?.writeText(scannerLink()).then(()=>
 
 async function checkCode(raw){
   if(processing) return; const cc=norm(raw); if(!cc||!bound) return; processing=true;
-  let result='denied', who='Pass not recognized';
-  try{ const r=await S.scan(bound,cc,deviceId()); if(r){ result=r.granted?'granted':'denied'; who=r.who||who; } }
+  let result='denied', who='Pass not recognized', doorOk=null;
+  try{ const r=await S.scan(bound,cc,deviceId()); if(r){ result=r.granted?'granted':'denied'; who=r.who||who; doorOk=(r.doorOk===undefined?null:r.doorOk); } }
   catch(e){ who='Server error'; }
-  verdict(result,who);
+  verdict(result,who,doorOk);
 }
-function verdict(result,who){
+function verdict(result,who,doorOk){
   const wrap=document.getElementById('ringWrap'),ov=document.getElementById('overlay'),oi=document.getElementById('ovIcon'),ro=document.getElementById('readout');
   const g=result==='granted';
+  const warn = g && doorOk===false;
   wrap.classList.remove('grant','deny');void wrap.offsetWidth;wrap.classList.add(g?'grant':'deny');
   ov.classList.remove('grant','deny');ov.classList.add(g?'grant':'deny','show');
-  oi.textContent=g?'✓':'✕'; oi.style.color=g?'var(--green)':'var(--red)';
-  ro.innerHTML=`<div class="verdict ${g?'grant':'deny'}">${g?'Access granted':'Access denied'}</div><div class="who">${esc(who)}</div>`;
-  document.getElementById('scanPrompt').textContent=g?'Door unlocked — welcome':'Entry refused';
-  g?grant():deny(); if(navigator.vibrate)navigator.vibrate(g?[40]:[80,60,80]);
-  clearTimeout(verdict._t); verdict._t=setTimeout(resetTerminal,2800);
+  oi.textContent=g?'✓':'✕'; oi.style.color=g?(warn?'var(--amber)':'var(--green)'):'var(--red)';
+  ro.innerHTML=`<div class="verdict ${g?'grant':'deny'}">${g?'Access granted':'Access denied'}</div><div class="who">${esc(who)}</div>`+
+    (warn?`<div class="who" style="color:var(--amber);margin-top:4px">⚠ Door didn't respond — check the lock</div>`:'');
+  document.getElementById('scanPrompt').textContent = g?(warn?'Granted — door didn\u2019t respond':'Door unlocked — welcome'):'Entry refused';
+  g?grant():deny(); if(warn) setTimeout(()=>tone(300,.28,'square',.12),220);
+  if(navigator.vibrate)navigator.vibrate(g?(warn?[40,60,40]:[40]):[80,60,80]);
+  clearTimeout(verdict._t); verdict._t=setTimeout(resetTerminal, warn?3600:2800);
 }
 function resetTerminal(){
   processing=false;
@@ -793,6 +860,8 @@ function showPass(p){
   ['scan','gate','dash'].forEach(v=>document.getElementById('v-'+v).classList.add('hide'));
   document.getElementById('v-pass').classList.remove('hide');
   document.getElementById('topbar').classList.add('hide');
+  pvSpace = p.s || '';
+  document.getElementById('pvFacility').textContent = (p.s ? p.s : 'Passlet').toUpperCase();
   document.getElementById('pvName').textContent=p.n||'Guest';
   document.getElementById('pvCode').textContent=p.pass;
   const q=document.getElementById('pvQR'); q.innerHTML=''; try{ new QRCode(q,{text:p.pass,width:200,height:200,correctLevel:QRCode.CorrectLevel.M}); }catch(e){}

@@ -269,52 +269,121 @@ app.post('/s/:code/scanner/remove', requireOwner, async (req, res) => {
   res.json({ ok:true });
 });
 
-// ---- scanner (tokenless): validate + count use + auto-renew + log + unlock, all server-side ----
+// ---- shared grant logic (used by phone scanners AND hardware readers) ----
+async function finishScan(c, cards, card, label){
+  let granted=false, who='Pass not recognized';
+  if(card){
+    let st=statusOfServer(card);
+    if(st==='expired' && card.autoRenew && card.autoRenew!=='off'){
+      const within = card.autoRenew==='forever' || (card.renewUntil && Date.now()<card.renewUntil);
+      if(within){ const cyc=card.durationDays||7; const nd=new Date(); nd.setHours(0,0,0,0); nd.setDate(nd.getDate()+cyc); card.expiry=fmtServer(nd); card.used=0; st=statusOfServer(card); }
+    }
+    if(st==='active'){ granted=true; card.used=(card.used||0)+1;
+      const left=card.maxUses?(card.maxUses-card.used):null;
+      who=card.name+(left!==null?' \u00b7 '+left+' use'+(left===1?'':'s')+' left':'');
+      await store.set('cards:'+c, cards);
+    } else if(st==='expired'){ who=card.name+' \u00b7 pass expired'; }
+    else { who=card.name+' \u00b7 no uses left'; }
+  }
+  try{ const k='log:'+c; const l=(await store.get(k))||[]; l.unshift({t:Date.now(),result:granted?'granted':'denied',name:card?card.name:'Unknown',code:label}); await store.set(k,l.slice(0,300)); }catch(e){}
+  let doorOk=null;
+  if(granted){ const d=(await store.get('door:'+c))||{};
+    if(d.server&&d.deviceId&&d.authKey){ doorOk=false;
+      try{ const body=new URLSearchParams({id:d.deviceId,channel:String(d.channel||'0'),turn:'on',auth_key:d.authKey});
+        const rr=await fetch(d.server.replace(/\/+$/,'')+'/device/relay/control',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
+        const dd=await rr.json().catch(()=>null); if(rr.ok&&dd&&dd.isok===true) doorOk=true;
+      }catch(e){ doorOk=false; }
+    }
+  }
+  return {granted, who, doorOk};
+}
+async function doScan(c, codeRaw){
+  const code=String(codeRaw||'').trim().toUpperCase();
+  if(!code) return {granted:false, who:'No code', doorOk:null};
+  const cards=(await store.get('cards:'+c))||[];
+  const card=cards.find(x=>String(x.code||'').toUpperCase()===code);
+  return finishScan(c, cards, card, code);
+}
+async function doScanUid(c, uidRaw){
+  const uid=String(uidRaw||'').trim().toUpperCase();
+  if(!uid) return {granted:false, who:'No card', doorOk:null};
+  const cards=(await store.get('cards:'+c))||[];
+  const card=cards.find(x=>String(x.uid||'').toUpperCase()===uid);
+  return finishScan(c, cards, card, 'card:'+uid.slice(0,10));
+}
+
+// ---- phone scanner (approved device) ----
 app.post('/s/:code/scan', async (req, res) => {
   const c = scode(req.params.code);
-  const code = String((req.body && req.body.code) || '').trim().toUpperCase();
-  if (!code) return res.json({ granted:false, who:'No code' });
   const did = String((req.body && req.body.deviceId) || '').trim();
   const scanners = (await store.get('scanners:' + c)) || [];
   const dev = scanners.find(d => d.id === did);
   if (!dev || dev.status !== 'approved') return res.json({ granted:false, who:'Scanner not approved' });
+  res.json(await doScan(c, (req.body && req.body.code) || ''));
+});
+
+// ---- hardware reader key (owner) ----
+app.get('/s/:code/reader-key', requireOwner, async (req, res) => {
+  const c = scode(req.params.code); const sp = req._space;
+  if (!sp.readerKey) { sp.readerKey = newToken(); await store.set('space:' + c, sp); }
+  res.json({ key: sp.readerKey });
+});
+app.post('/s/:code/reader-key/reset', requireOwner, async (req, res) => {
+  const c = scode(req.params.code); const sp = req._space;
+  sp.readerKey = newToken(); await store.set('space:' + c, sp);
+  res.json({ key: sp.readerKey });
+});
+
+// ---- hardware reader: door tap by card UID ----
+app.post('/s/:code/reader-scan', async (req, res) => {
+  const c = scode(req.params.code); const sp = await store.get('space:' + c);
+  if (!sp) return res.json({ granted:false, who:'nospace' });
+  if (!sp.readerKey || (req.body && req.body.key) !== sp.readerKey) return res.status(401).json({ granted:false, who:'bad reader key' });
+  const b = req.body || {};
+  if (b.uid) return res.json(await doScanUid(c, b.uid));
+  res.json(await doScan(c, b.code || ''));
+});
+
+// ---- card management (owner sets what the next reader tap should do) ----
+app.post('/s/:code/card-pending', requireOwner, async (req, res) => {
+  const c = scode(req.params.code); const sp = req._space; const b = req.body || {};
+  sp.pending = { mode: b.mode || 'none', code: String(b.code || '').toUpperCase(), ts: Date.now() };
+  await store.set('space:' + c, sp);
+  res.json({ ok:true });
+});
+app.post('/s/:code/card-unlink', requireOwner, async (req, res) => {
+  const c = scode(req.params.code); const code = String((req.body && req.body.code) || '').toUpperCase();
   const cards = (await store.get('cards:' + c)) || [];
   const card = cards.find(x => String(x.code || '').toUpperCase() === code);
-  let granted = false, who = 'Pass not recognized';
-  if (card) {
-    let st = statusOfServer(card);
-    if (st === 'expired' && card.autoRenew && card.autoRenew !== 'off') {
-      const within = card.renewUntil && Date.now() < card.renewUntil;
-      if (within) {
-        const cyc = card.durationDays || 7;
-        const nd = new Date(); nd.setHours(0,0,0,0); nd.setDate(nd.getDate() + cyc);
-        card.expiry = fmtServer(nd); card.used = 0; st = statusOfServer(card);
-      }
-    }
-    if (st === 'active') {
-      granted = true; card.used = (card.used || 0) + 1;
-      const left = card.maxUses ? (card.maxUses - card.used) : null;
-      who = card.name + (left !== null ? ' \u00b7 ' + left + ' use' + (left === 1 ? '' : 's') + ' left' : '');
-      await store.set('cards:' + c, cards);
-    } else if (st === 'expired') { who = card.name + ' \u00b7 pass expired'; }
-    else { who = card.name + ' \u00b7 no uses left'; }
+  if (card) { delete card.uid; await store.set('cards:' + c, cards); }
+  res.json({ ok:true });
+});
+
+// ---- hardware reader: management tap (reads a card UID, applies pending action) ----
+app.post('/s/:code/card-manage', async (req, res) => {
+  const c = scode(req.params.code); const sp = await store.get('space:' + c);
+  if (!sp) return res.json({ ok:false, who:'nospace' });
+  if (!sp.readerKey || (req.body && req.body.key) !== sp.readerKey) return res.status(401).json({ ok:false, who:'bad reader key' });
+  const uid = String((req.body && req.body.uid) || '').trim().toUpperCase();
+  if (!uid) return res.json({ ok:false, who:'no card' });
+  const cards = (await store.get('cards:' + c)) || [];
+  const pending = (sp.pending && (Date.now() - sp.pending.ts < 120000)) ? sp.pending : null;
+  if (pending && pending.mode === 'assign') {
+    const target = cards.find(x => String(x.code || '').toUpperCase() === pending.code);
+    if (!target) { sp.pending = null; await store.set('space:' + c, sp); return res.json({ ok:false, action:'assign', who:'pass not found' }); }
+    cards.forEach(x => { if (String(x.uid || '').toUpperCase() === uid) delete x.uid; });
+    target.uid = uid; sp.pending = null;
+    await store.set('cards:' + c, cards); await store.set('space:' + c, sp);
+    return res.json({ ok:true, action:'assigned', who: target.name });
   }
-  try {
-    const k = 'log:' + c; const l = (await store.get(k)) || [];
-    l.unshift({ t: Date.now(), result: granted ? 'granted' : 'denied', name: card ? card.name : 'Unknown', code });
-    await store.set(k, l.slice(0, 300));
-  } catch (e) {}
-  if (granted) {
-    const d = (await store.get('door:' + c)) || {};
-    if (d.server && d.deviceId && d.authKey) {
-      try {
-        const body = new URLSearchParams({ id:d.deviceId, channel:String(d.channel||'0'), turn:'on', auth_key:d.authKey });
-        await fetch(d.server.replace(/\/+$/, '') + '/device/relay/control',
-          { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body });
-      } catch (e) {}
-    }
+  if (pending && pending.mode === 'clear') {
+    cards.forEach(x => { if (String(x.uid || '').toUpperCase() === uid) delete x.uid; });
+    sp.pending = null; await store.set('cards:' + c, cards); await store.set('space:' + c, sp);
+    return res.json({ ok:true, action:'cleared' });
   }
-  res.json({ granted, who });
+  const linked = cards.find(x => String(x.uid || '').toUpperCase() === uid);
+  if (linked) return res.json({ ok:true, action:'status', who: linked.name, status: statusOfServer(linked) });
+  return res.json({ ok:true, action:'status', who: null });
 });
 
 // ---------- serve the app (public/ only, so data.json is never exposed) ----------
