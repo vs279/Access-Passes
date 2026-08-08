@@ -170,6 +170,8 @@
   .steps details ol{list-style:decimal;margin:8px 0 0;padding-left:20px}
   .steps details li{counter-increment:none;padding:0 0 8px 0;font-size:12.5px;color:var(--muted);line-height:1.5}
   .steps details li::before{content:none}
+  .steps a{color:var(--amber);text-decoration:underline;text-underline-offset:2px}
+  .steps .cmd{display:block;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:8px 10px;margin:6px 0;font-family:var(--mono);font-size:11.5px;color:#e6edf6;white-space:pre-wrap;word-break:break-word;user-select:all;-webkit-user-select:all}
 
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--gfill);backdrop-filter:var(--blur);
     border:1px solid var(--gedge);color:var(--text);padding:12px 20px;border-radius:100px;font-size:13px;opacity:0;transition:.25s;z-index:60;pointer-events:none}
@@ -353,42 +355,73 @@
       </div>
       <div class="grid2 mt12"><button class="btn ghost sm" onclick="resetReaderKey()">Reset key</button><div></div></div>
       <div class="subnote" style="margin-top:10px">Keep this key secret — anything with it can open the door.</div>
-      <label class="mt12">Reader files</label>
-      <div class="grid2"><button class="btn primary" onclick="openFile('tpl-reader','reader.py')">reader.py</button><button class="btn primary" onclick="openFile('tpl-manage','manage.py')">manage.py</button></div>
-      <button class="btn full" style="margin-top:8px" onclick="openFile('tpl-readme','README.md')">README (setup guide)</button>
-      <div class="subnote" style="margin-top:8px">Tap a file, then <b>Copy</b> and paste it into a new file on your Pi. reader.py &amp; manage.py already have your details filled in.</div>
+      <label class="mt12">Reader file</label>
+      <div class="grid2"><button class="btn primary" onclick="openFile('tpl-passlet','passlet.py')">passlet.py</button><button class="btn" onclick="openFile('tpl-readme','README.md')">README</button></div>
+      <div class="subnote" style="margin-top:8px">Tap <b>passlet.py</b>, then <b>Copy</b> and paste it into one file on your Pi. It already has your details filled in.</div>
       <button class="btn ghost sm" id="readerGuideBtn" onclick="toggleReaderGuide()" style="margin-top:14px">How to set up the reader ▾</button>
       <ol class="steps hide" id="readerGuide">
         <li><b>Get the parts:</b> a Raspberry Pi (Zero W, or Pi 4), the ACR122U NFC reader, an SD card, a fan to cool the Pi, a USB power supply, and 13.56 MHz NFC cards.</li>
         <li><b>Clip the fan onto the Pi.</b></li>
-        <li><b>Set up the SD card:</b> put it in your computer and use the free <b>Raspberry Pi Imager</b> app to load <b>Raspberry Pi OS Lite</b> onto it. In Imager's settings, turn on <b>Wi-Fi</b> and <b>SSH</b> and set a username + password.</li>
+        <li><b>Set up the SD card</b> with the free <b>Raspberry Pi Imager</b> app.
+          <details><summary>Show me exactly how ▾</summary>
+            <ol>
+              <li><b>Download and install</b> — get it from <span class="note">raspberrypi.com/software</span>, then install and open it.</li>
+              <li><b>Insert your storage</b> — put your SD card (or USB drive) into your computer.</li>
+              <li><b>Choose your device</b> — click "Choose Device" and pick your Raspberry Pi model (e.g. Pi 5, Pi 4). This helps it recommend compatible OS options.</li>
+              <li><b>Choose the OS</b> — click "Choose OS" and select an operating system. For most people, "Raspberry Pi OS (recommended)" at the top is the right pick.</li>
+              <li><b>Choose storage</b> — click "Choose Storage" and select your SD card. Double-check you're picking the right drive, since this erases everything on it.</li>
+              <li><b>Edit settings</b> (important) — click "Next", then edit settings. Preset your hostname, username/password, Wi-Fi network, and turn on <b>SSH</b>. This is essential for a headless setup (no monitor/keyboard).</li>
+              <li><b>Write</b> — click "Write", confirm the erase warning, and wait. It flashes the OS, then verifies it.</li>
+              <li><b>Boot</b> — when done, remove the card, put it in your Pi, and power it on.</li>
+            </ol>
+          </details>
+        </li>
         <li><b>Put the SD card into the Pi.</b></li>
         <li><b>Plug the NFC reader into the Pi</b> (any USB port).</li>
         <li><b>Plug the Pi into power</b> to turn it on.</li>
         <li><b>Connect to the Pi &amp; install the software.</b>
           <details><summary>Show me exactly how ▾</summary>
             <ol>
-              <li>On your computer open <b>Terminal</b> (Mac: Applications → Utilities → Terminal) or <b>PowerShell</b> (Windows: search it in the Start menu).</li>
-              <li>Type <span class="note">ssh USERNAME@raspberrypi.local</span> (use the username you set in Imager) and press Enter. If it asks to continue, type <span class="note">yes</span>. Type your password — it stays hidden as you type — and press Enter.</li>
-              <li>You're now on the Pi. Paste <span class="note">sudo apt update &amp;&amp; sudo apt install -y pcscd libpcsclite-dev swig python3-pip</span>, press Enter, type your password if asked, and wait for it to finish.</li>
-              <li>Paste <span class="note">pip3 install pyscard requests --break-system-packages</span> and press Enter.</li>
-              <li>One-time reader fix: paste <span class="note">sudo nano /etc/modprobe.d/blacklist-nfc.conf</span>, type three lines — <span class="note">blacklist pn533</span>, <span class="note">blacklist pn533_usb</span>, <span class="note">blacklist nfc</span> — then press Ctrl+O, Enter, Ctrl+X to save.</li>
-              <li>Restart: paste <span class="note">sudo reboot</span>. Wait about a minute, then connect again with the same ssh line from step 2.</li>
+              <li>Open <b>Terminal</b> (Mac — <a href="https://support.apple.com/guide/terminal/open-or-quit-terminal-apd5265185d-f365-44cb-8b09-71a064a42125/mac" target="_blank" rel="noopener">how to open it</a>) or <b>PowerShell</b> (Windows — <a href="https://learn.microsoft.com/en-us/powershell/scripting/windows-powershell/starting-windows-powershell" target="_blank" rel="noopener">how to open it</a>). Both are already built into your computer.</li>
+              <li><b>Connect to the Pi.</b> Type this and press Enter (put the username you set in Imager in place of USERNAME):
+                <code class="cmd">ssh USERNAME@raspberrypi.local</code>
+                If it asks "are you sure", type <b>yes</b> and press Enter. Then type your password (it stays hidden as you type) and press Enter.</li>
+              <li><b>Install the software.</b> Type each line, pressing Enter after each (enter your password if asked):
+                <code class="cmd">sudo apt update && sudo apt install -y pcscd libpcsclite-dev swig python3-pip</code>
+                <code class="cmd">pip3 install pyscard requests --break-system-packages</code></li>
+              <li><b>One-time reader fix.</b> Type:
+                <code class="cmd">sudo nano /etc/modprobe.d/blacklist-nfc.conf</code>
+                In the editor that opens, type these three lines:
+                <code class="cmd">blacklist pn533
+blacklist pn533_usb
+blacklist nfc</code>
+                Then save: press Ctrl+O, then Enter, then Ctrl+X.</li>
+              <li><b>Restart the Pi.</b> Type:
+                <code class="cmd">sudo reboot</code>
+                Wait about a minute, then connect again with the same ssh line above.</li>
             </ol>
           </details>
         </li>
-        <li><b>Put the two files on the Pi.</b>
+        <li><b>Put the file on the Pi.</b>
           <details><summary>Show me exactly how ▾</summary>
             <ol>
-              <li>In this app: <b>Hardware reader</b> card → tap <b>reader.py</b> → tap <b>Copy</b>.</li>
-              <li>In your Pi window, type <span class="note">nano reader.py</span> and press Enter — a blank editor opens.</li>
+              <li>In this app: <b>Hardware reader</b> card → tap <b>passlet.py</b> → tap <b>Copy</b>.</li>
+              <li>In your Pi window, type <code class="cmd">nano passlet.py</code> and press Enter — a blank editor opens.</li>
               <li>Paste the file (Mac: Cmd+V · Windows PowerShell: right-click). The code fills in.</li>
-              <li>Save it: press <b>Ctrl+O</b> then <b>Enter</b>. Close it: press <b>Ctrl+X</b>.</li>
-              <li>Do the same for the other file: tap <b>manage.py</b> here → <b>Copy</b>, then on the Pi <span class="note">nano manage.py</span> → paste → Ctrl+O, Enter, Ctrl+X.</li>
+              <li>Save it: press <b>Ctrl+O</b> then <b>Enter</b>. Close it: press <b>Ctrl+X</b>.
+                <details><summary>Saving on a Mac? ▾</summary>
+                  <div style="margin-top:6px;font-size:12.5px;color:var(--muted);line-height:1.55">Use the <b>Control (⌃)</b> key — <b>not</b> Command (⌘). So: <b>⌃O</b> (the letter O, not zero) → <b>Return</b> → <b>⌃X</b>. The <span style="font-family:var(--mono)">^O</span> / <span style="font-family:var(--mono)">^X</span> hints along the bottom of nano mean Control.</div>
+                </details>
+                <details><summary>Control keys not working? Save without nano ▾</summary>
+                  <div style="margin-top:6px;font-size:12.5px;color:var(--muted);line-height:1.55">Skip nano completely:
+                    <code class="cmd">cat > passlet.py</code>
+                    press <b>Return</b>, <b>paste</b> the whole file, press <b>Return</b> once, then press <b>Control + D</b>. That writes the file straight away.</div>
+                </details>
+              </li>
             </ol>
           </details>
         </li>
-        <li><b>Use it:</b> make a pass → <b>Assign to a card</b>, run <span class="note">python3 manage.py</span> and tap a card. Then run <span class="note">python3 reader.py</span> — tap an assigned card to open the door.</li>
+        <li><b>Use it:</b> make a pass → <b>Assign to a card</b>, run <span class="note">python3 passlet.py manage</span> and tap a card. Then run <span class="note">python3 passlet.py</span> — tap an assigned card to open the door.</li>
       </ol>
       <div class="subnote" style="margin-top:8px">The README button has the exact commands and how to make it start on its own.</div>
     </div>
@@ -1071,119 +1104,34 @@ systemctl status passlet-reader.service
   like the phone scanner. The Pi only reads the card's UID and passes it along.
 
 </script>
-<script type="text/plain" id="tpl-reader">
+<script type="text/plain" id="tpl-passlet">
 #!/usr/bin/env python3
 """
-Passlet DOOR reader  —  Raspberry Pi + ACR122U
+Passlet reader  —  Raspberry Pi + ACR122U
 
-Reads a member card's UID, checks it with your Passlet server, and the server
-opens the Shelly lock. Green + beep = granted, red = denied.
+Open the door:     python3 passlet.py
+Manage cards:      python3 passlet.py manage
 
-Fill in the CONFIG below, then run:  python3 reader.py
+(If you copied this from your Passlet dashboard, the details below are already filled in.)
 """
 
-import time
-import requests
+import sys, time, requests
 from smartcard.CardMonitoring import CardMonitor, CardObserver
 from smartcard.util import toHexString
 
-# ============ CONFIG — fill these in ============
-SERVER     = "__SERVER__"   # your Render URL (no trailing slash)
-SPACE      = "__SPACE__"                       # your space code, lowercase
-READER_KEY = "__READERKEY__"       # Dashboard > Hardware reader > Reader key
-# ===============================================
-
-
-def led(conn, ok, seconds=0.6, beep=True):
-    state = 0x0E if ok else 0x0D          # green on / red on
-    t1 = max(1, int(seconds * 10))
-    buzz = 0x01 if beep else 0x00
-    try:
-        conn.transmit([0xFF, 0x00, 0x40, state, 0x04, t1, 0x00, 0x01, buzz])
-    except Exception:
-        pass
-
-
-def read_uid(conn):
-    try:
-        data, sw1, sw2 = conn.transmit([0xFF, 0xCA, 0x00, 0x00, 0x00])  # get card UID
-        if sw1 != 0x90:
-            return ""
-        return toHexString(data).replace(" ", "")
-    except Exception:
-        return ""
-
-
-def check(uid):
-    try:
-        r = requests.post(f"{SERVER}/s/{SPACE}/reader-scan",
-                          json={"key": READER_KEY, "uid": uid}, timeout=15)
-        return r.json()
-    except Exception as e:
-        print("  server error:", e)
-        return {"granted": False, "who": "server unreachable"}
-
-
-class Reader(CardObserver):
-    def update(self, observable, actions):
-        added, _removed = actions
-        for card in added:
-            try:
-                conn = card.createConnection(); conn.connect()
-                uid = read_uid(conn)
-                if not uid:
-                    led(conn, False, 0.3); continue
-                res = check(uid)
-                ok = bool(res.get("granted"))
-                print(("  GRANTED" if ok else "  DENIED"), "-", res.get("who", ""))
-                led(conn, ok, 0.6, beep=True)
-            except Exception as e:
-                print("  card error:", e)
-
-
-def main():
-    print("Passlet DOOR reader running. Tap a card…  (Ctrl+C to stop)")
-    mon = CardMonitor(); obs = Reader(); mon.addObserver(obs)
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        mon.deleteObserver(obs); print("\nstopped")
-
-
-if __name__ == "__main__":
-    main()
-
-</script>
-<script type="text/plain" id="tpl-manage">
-#!/usr/bin/env python3
-"""
-Passlet CARD MANAGER  —  Raspberry Pi + ACR122U
-
-Run this to assign/remove members on cards.
-1) In the Passlet app, open a pass and tap "Assign to a card"  (or "Remove card").
-2) Run this script and tap the card. It applies what you chose in the app.
-   With nothing pending, tapping a card just tells you who is on it.
-
-Fill in the CONFIG below, then run:  python3 manage.py
-"""
-
-import time
-import requests
-from smartcard.CardMonitoring import CardMonitor, CardObserver
-from smartcard.util import toHexString
-
-# ============ CONFIG — same as reader.py ============
+# ============ CONFIG ============
 SERVER     = "__SERVER__"
 SPACE      = "__SPACE__"
 READER_KEY = "__READERKEY__"
-# ====================================================
+# ================================
+
+MODE = "manage" if (len(sys.argv) > 1 and sys.argv[1].lower().startswith("manage")) else "door"
 
 
-def led(conn, ok, seconds=0.5, beep=True):
+def led(conn, ok, seconds=0.6, beep=True):
     state = 0x0E if ok else 0x0D
     try:
-        conn.transmit([0xFF, 0x00, 0x40, state, 0x04, max(1, int(seconds*10)), 0x00, 0x01, 0x01 if beep else 0x00])
+        conn.transmit([0xFF, 0x00, 0x40, state, 0x04, max(1, int(seconds * 10)), 0x00, 0x01, 0x01 if beep else 0x00])
     except Exception:
         pass
 
@@ -1196,16 +1144,15 @@ def read_uid(conn):
         return ""
 
 
-def manage(uid):
+def post(path, payload):
     try:
-        r = requests.post(f"{SERVER}/s/{SPACE}/card-manage",
-                          json={"key": READER_KEY, "uid": uid}, timeout=15)
-        return r.json()
+        return requests.post(f"{SERVER}/s/{SPACE}/{path}", json=payload, timeout=15).json()
     except Exception as e:
-        print("  server error:", e); return {"ok": False}
+        print("  server error:", e)
+        return {}
 
 
-class Manager(CardObserver):
+class Handler(CardObserver):
     def update(self, observable, actions):
         added, _removed = actions
         for card in added:
@@ -1214,25 +1161,31 @@ class Manager(CardObserver):
                 uid = read_uid(conn)
                 if not uid:
                     led(conn, False, 0.3); continue
-                res = manage(uid)
-                action = res.get("action")
-                if action == "assigned":
-                    print(f"  ASSIGNED to {res.get('who')}"); led(conn, True)
-                elif action == "cleared":
-                    print("  CLEARED — card is now free"); led(conn, True)
-                elif action == "status":
-                    who = res.get("who")
-                    print(f"  This card belongs to: {who} ({res.get('status')})" if who else "  This card is blank / not linked")
-                    led(conn, bool(who))
+                if MODE == "door":
+                    res = post("reader-scan", {"key": READER_KEY, "uid": uid})
+                    ok = bool(res.get("granted"))
+                    print(("  GRANTED" if ok else "  DENIED"), "-", res.get("who", ""))
+                    led(conn, ok)
                 else:
-                    print("  ", res.get("who") or res); led(conn, False)
+                    res = post("card-manage", {"key": READER_KEY, "uid": uid})
+                    a = res.get("action")
+                    if a == "assigned":
+                        print("  ASSIGNED to", res.get("who")); led(conn, True)
+                    elif a == "cleared":
+                        print("  CLEARED — card is now free"); led(conn, True)
+                    elif a == "status":
+                        who = res.get("who")
+                        print(("  This card belongs to: " + who + " (" + str(res.get("status")) + ")") if who else "  This card is blank / not linked")
+                        led(conn, bool(who))
+                    else:
+                        print("  ", res.get("who") or res); led(conn, False)
             except Exception as e:
                 print("  card error:", e)
 
 
 def main():
-    print("Passlet CARD MANAGER running. Tap a card…  (Ctrl+C to stop)")
-    mon = CardMonitor(); obs = Manager(); mon.addObserver(obs)
+    print("Passlet", MODE.upper(), "running. Tap a card…  (Ctrl+C to stop)")
+    mon = CardMonitor(); obs = Handler(); mon.addObserver(obs)
     try:
         while True:
             time.sleep(1)
