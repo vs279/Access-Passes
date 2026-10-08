@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Passlet</title>
+<title>Access Passes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
 <style>
   :root{
     --text:#f3f6fa; --muted:#c2ccd8; --faint:#8d9aa8;
@@ -132,7 +132,6 @@
   .pill.active{background:rgba(77,227,154,.16);color:var(--green);border-color:rgba(77,227,154,.3)}
   .pill.revoked{background:rgba(255,107,99,.14);color:var(--red);border-color:rgba(255,107,99,.3)}
   .pill.expired{background:rgba(255,194,77,.16);color:var(--amber);border-color:rgba(255,194,77,.3)}
-  .pill.depleted{background:rgba(255,255,255,.08);color:var(--faint);border-color:rgba(255,255,255,.14)}
   .pill.sent{background:rgba(255,255,255,.08);color:var(--muted)}
   .prow-actions{display:flex;gap:6px;flex-wrap:wrap}
   .empty{color:var(--faint);font-family:var(--mono);font-size:11.5px}
@@ -160,11 +159,10 @@
     box-shadow:inset 0 2px 20px rgba(0,0,0,.5)}
   .eye::after{content:'';position:absolute;inset:0;border-radius:50%;pointer-events:none;z-index:4;
     background:linear-gradient(135deg,rgba(255,255,255,.4),rgba(255,255,255,0) 38%,rgba(255,255,255,0) 70%,rgba(255,255,255,.12));mix-blend-mode:screen}
-  #reader{position:absolute!important;inset:0;width:100%!important;height:100%!important;border:0!important;padding:0!important;border-radius:50%;overflow:hidden}
-  #reader video{position:absolute!important;top:50%;left:50%;transform:translate(-50%,-50%)!important;min-width:100%;min-height:100%;width:auto!important;height:auto!important;object-fit:cover!important;border-radius:50%;display:block}
-  #reader canvas{position:absolute!important;top:50%;left:50%;transform:translate(-50%,-50%)!important;min-width:100%;min-height:100%;width:auto!important;height:auto!important;border-radius:50%}
-  #reader img,#reader__dashboard,#reader__status_span,#reader__header_message,#reader__scan_region img{display:none!important}
-  #reader__scan_region{background:transparent!important;border:0!important}
+  #reader{width:100%;height:100%}
+  #reader video{width:100%!important;height:100%!important;object-fit:cover;display:block}
+  #reader img,#reader__dashboard,#reader__scan_region img{display:none!important}
+  #reader__scan_region{background:transparent!important}
   .placeholder{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:22px;color:var(--faint);font-family:var(--mono);font-size:11px;line-height:1.7;letter-spacing:.5px;z-index:2}
   .scanline{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--amber),transparent);opacity:.85;animation:sweep 2.6s linear infinite;pointer-events:none;z-index:3}
   @keyframes sweep{0%{top:8%}100%{top:92%}}
@@ -210,10 +208,6 @@
   .modal h3{font-size:16px;margin-bottom:2px}
   .modal .msub{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:16px}
   .bcbox{background:#fff;border-radius:14px;padding:16px 10px;text-align:center;margin-bottom:14px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
-  .qr{background:#fff;border-radius:14px;padding:12px;display:inline-block;line-height:0;margin:0 auto 12px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
-  #pvQR canvas,#pvQR img,#mQR canvas,#mQR img{display:block;width:190px;height:190px}
-  #mQR canvas,#mQR img{width:150px;height:150px}
-  .scanhint{font-family:var(--mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:#6a7686;margin-bottom:10px}
   .email-preview{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px;font-size:12.5px;line-height:1.6;color:var(--muted);margin-bottom:14px}
   .email-preview .to{font-family:var(--mono);font-size:11px;color:var(--text);margin-bottom:6px}
   .email-preview .lnk{color:var(--amber);word-break:break-all;font-family:var(--mono);font-size:10.5px}
@@ -238,7 +232,7 @@
   <div class="brand">
     <span class="status-dot"></span>
     <div style="min-width:0">
-      <h1 id="facilityName">Passlet</h1>
+      <h1 id="facilityName">The Vault</h1>
       <div class="sys" id="topSys">Access Control</div>
     </div>
   </div>
@@ -250,26 +244,28 @@
   <section id="v-hostGate" class="hide">
     <div class="auth card glass">
       <div class="ic">🗝️</div>
-      <h2 id="authTitle">Passlet sign-in</h2>
+      <h2 id="authTitle">Host sign-in</h2>
       <p class="hint" id="authHint">Sign in to manage passes.</p>
 
       <div id="setupBlock" class="hide">
-        <label>Email</label>
+        <label>Facility name</label>
+        <input class="field" id="suFacility" placeholder="e.g. The Vault Gym" />
+        <label class="mt12">Host email</label>
         <input class="field" id="suEmail" type="email" placeholder="you@email.com" />
         <label class="mt12">Create password</label>
         <input class="field" id="suPass" type="password" placeholder="Choose a password" />
         <div class="err" id="suErr"></div>
-        <button class="btn primary full" onclick="createHost()">Create Passlet account</button>
+        <button class="btn primary full" onclick="createHost()">Create host account</button>
       </div>
 
       <div id="loginBlock">
-        <label>Email</label>
+        <label>Host email</label>
         <input class="field" id="liEmail" type="email" placeholder="you@email.com" onkeydown="if(event.key==='Enter')login()" />
         <label class="mt12">Password</label>
         <input class="field" id="liPass" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')login()" />
         <div class="err" id="liErr"></div>
         <button class="btn primary full" onclick="login()">Sign in</button>
-        <button class="btn ghost full mt12" onclick="resetHost()">Reset Passlet account</button>
+        <button class="btn ghost full mt12" onclick="resetHost()">Reset host account</button>
       </div>
       <button class="btn ghost full mt12" onclick="go('scan')">← Back to scanner</button>
     </div>
@@ -300,13 +296,6 @@
           <input class="field" id="gExpiry" type="date" />
         </div>
       </div>
-      <div class="grid2 mt12">
-        <div>
-          <label>Max uses <span style="color:var(--faint)">(optional)</span></label>
-          <input class="field" id="gUses" type="number" min="1" inputmode="numeric" placeholder="Unlimited" />
-        </div>
-        <div></div>
-      </div>
       <button class="btn primary full mt16" onclick="issueCard()">Create &amp; email pass</button>
     </div>
 
@@ -322,56 +311,23 @@
       <div class="log" id="logList"></div>
       <div class="mt12"><button class="btn sm ghost danger" onclick="clearLog()">Clear log</button></div>
     </div>
-
-    <div class="card glass">
-      <h3>Your door</h3>
-      <div class="sub">Connect a Shelly relay &middot; unlocks on a granted scan</div>
-      <label>Shelly cloud server</label>
-      <input class="field" id="dServer" placeholder="https://shelly-1-eu.shelly.cloud" />
-      <div class="grid2 mt12">
-        <div>
-          <label>Device ID</label>
-          <input class="field" id="dDevice" placeholder="e.g. 3494546a1b2c" />
-        </div>
-        <div>
-          <label>Channel</label>
-          <input class="field" id="dChannel" placeholder="0" />
-        </div>
-      </div>
-      <label class="mt12">Cloud auth key</label>
-      <input class="field" id="dKey" type="password" placeholder="Paste to set &middot; leave blank to keep current" />
-      <div class="grid2 mt16">
-        <button class="btn primary" onclick="saveDoor()">Save door</button>
-        <button class="btn" onclick="testDoor()">Test unlock</button>
-      </div>
-      <div class="subnote" id="doorStatus" style="margin-top:12px"></div>
-    </div>
-
-    <div class="card glass">
-      <h3>Settings</h3>
-      <div class="sub">Passlet password</div>
-      <div class="grid2">
-        <input class="field" id="setPass" type="password" placeholder="New password" />
-        <button class="btn" onclick="savePassword()">Change password</button>
-      </div>
-    </div>
   </section>
 
   <!-- SCAN -->
   <section id="v-scan" class="scan hide">
-    <div class="prompt" id="scanPrompt">Present QR code to enter</div>
+    <div class="prompt" id="scanPrompt">Present barcode to enter</div>
     <div class="ring-wrap" id="ringWrap">
       <div class="glow"></div><div class="ring"></div>
       <div class="eye">
         <div id="reader"></div>
-        <div class="placeholder" id="camPlaceholder">Scanner idle<br>tap “Scan QR code”<br>or type the code</div>
+        <div class="placeholder" id="camPlaceholder">Scanner idle<br>tap “Scan barcode”<br>or type the code</div>
         <div class="scanline hide" id="scanline"></div>
       </div>
       <div class="overlay" id="overlay"><span class="icon" id="overlayIcon"></span></div>
     </div>
     <div class="readout" id="readout"><div class="who">Ready</div></div>
 
-    <button class="btn primary" id="camToggle" style="min-width:200px" onclick="toggleCamera()">Scan QR code</button>
+    <button class="btn primary" id="camToggle" style="min-width:200px" onclick="toggleCamera()">Scan barcode</button>
 
     <div class="manual">
       <input class="field" id="manualCode" placeholder="OR ENTER CODE" autocomplete="off" onkeydown="if(event.key==='Enter')submitManual()"/>
@@ -383,13 +339,12 @@
   <!-- PASS VIEW -->
   <section id="v-pass" class="passview hide">
     <div class="passcard">
-      <div class="facility" id="pvFacility">PASSLET</div>
+      <div class="facility" id="pvFacility">THE VAULT</div>
       <h2 id="pvName">Guest</h2>
       <div class="role" id="pvRole">Access pass</div>
-      <div class="scanhint">Scan this at the door</div>
-      <div class="qr" id="pvQR"></div>
+      <div class="bc"><svg id="pvBarcode"></svg></div>
       <div class="codeText" id="pvCode"></div>
-      <div class="foot">Show this at the door and scan the QR code to enter.<br>Keep it private — anyone with this pass can get in.</div>
+      <div class="foot">Show this at the door and scan the barcode to enter.<br>Keep it private — anyone with this pass can get in.</div>
     </div>
   </section>
 </main>
@@ -398,8 +353,8 @@
 <div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
   <div class="modal">
     <h3 id="mTitle">Pass created</h3>
-    <div class="msub">QR key card</div>
-    <div style="text-align:center"><div class="qr" id="mQR"></div></div>
+    <div class="msub">Barcode key card</div>
+    <div class="bcbox"><svg id="mBarcode"></svg></div>
     <div class="email-preview">
       <div class="to">To: <span id="mTo"></span></div>
       <div id="mBody"></div>
@@ -447,8 +402,8 @@ const cloud = BACKEND.url ? {
   setHost:async h=>{await api('/host','PUT',h);},
 } : null;
 
-async function saveCards(){ if(cloud){try{await cloud.setCards(cards);}catch(e){}} else await sSet('kc:cards',JSON.stringify(cards)); }
-async function saveHost(){ if(cloud){try{await cloud.setHost(host);}catch(e){}} else await sSet('kc:host',JSON.stringify(host)); }
+async function saveCards(){ if(cloud){try{await cloud.setCards(cards);}catch(e){console.warn(e);}} else await sSet('kc:cards',JSON.stringify(cards)); }
+async function saveHost(){ if(cloud){try{await cloud.setHost(host);}catch(e){console.warn(e);}} else await sSet('kc:host',JSON.stringify(host)); }
 
 let poll=null;
 function startPoll(kind){
@@ -470,37 +425,23 @@ function setSyncIndicator(){
 
 let host=null, cards=[], log=[], session=false, current=null;
 
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function boot(){
-  setSyncIndicator();
-  const p=parseHash();
-  if(p.code){ showPass(p); hydrate(); return; }   // guests see their pass instantly
-  go('scan');                                      // show the app right away
-  hydrate();                                        // load data in the background (waits out cold starts)
-}
-async function hydrate(){
-  if(cloud){
-    let ok=false;
-    for(let i=0;i<20 && !ok;i++){
-      try{ host=await cloud.getHost(); cards=await cloud.getCards(); log=await cloud.getLog(); ok=true; }
-      catch(e){ if(i===0) toast('Waking the server\u2026'); await sleep(3000); }
+  let cloudErr=false;
+  try{
+    if(cloud){ host=await cloud.getHost(); cards=await cloud.getCards(); log=await cloud.getLog(); }
+    else{
+      const h=await sGet('kc:host'); if(h){try{host=JSON.parse(h);}catch(e){}}
+      const c=await sGet('kc:cards'); if(c){try{cards=JSON.parse(c);}catch(e){}}
+      const l=await sGet('kc:log'); if(l){try{log=JSON.parse(l);}catch(e){}}
     }
-    if(!ok){ toast('Cloud sync unreachable \u2014 check the backend URL'); return; }
-  }else{
-    const h=await sGet('kc:host'); if(h){try{host=JSON.parse(h);}catch(e){}}
-    const c=await sGet('kc:cards'); if(c){try{cards=JSON.parse(c);}catch(e){}}
-    const l=await sGet('kc:log'); if(l){try{log=JSON.parse(l);}catch(e){}}
-  }
-  if(!host){ host={facility:'Passlet',email:'host@passlet.co.uk',pass:'passlet2026'}; await saveHost(); }
-  if(host){ let _mig=false;
-    if(host.facility!=='Passlet'){ host.facility='Passlet'; _mig=true; }
-    if(host.email==='host@thevault.com'||host.email==='host@passlet.app'){ host.email='host@passlet.co.uk'; _mig=true; }
-    if(host.pass==='vault123'||host.pass==='passlet123'||host.pass==='Passlet$ecure_2026!'){ host.pass='passlet2026'; _mig=true; }
-    if(_mig) await saveHost();
-  }
-  document.getElementById('facilityName').textContent='Passlet';
+  }catch(e){ cloudErr=true; console.warn('load failed',e); }
+  if(!host){ host={facility:'The Vault',email:'host@thevault.com',pass:'vault123'}; await saveHost(); }
+  if(host&&host.facility){ document.getElementById('facilityName').textContent=host.facility; }
   setSyncIndicator();
-  if(!document.getElementById('v-host').classList.contains('hide')){ renderCards(); renderLog(); }
+  if(cloudErr) setTimeout(()=>toast('Cloud sync unreachable — check the backend URL'),400);
+  const p=parseHash();
+  if(p.code){ showPass(p); return; }
+  go('scan');
 }
 function parseHash(){
   const h=location.hash.replace(/^#/,''); const o={};
@@ -517,9 +458,9 @@ function go(view){
   if(view!=='scan') stopCamera();
   document.getElementById('topbar').classList.toggle('hide', view==='pass');
   const tr=document.getElementById('topRight'), sys=document.getElementById('topSys'); tr.innerHTML='';
-  if(view==='hostGate'){ prepGate(); sys.textContent='Passlet';
+  if(view==='hostGate'){ prepGate(); sys.textContent='Host access';
     tr.innerHTML='<button class="btn sm ghost" onclick="go(\'scan\')">← Scanner</button>'; }
-  if(view==='host'){ sys.textContent='Passlet · '+esc(host.email); renderCards(); renderLog(); loadDoor();
+  if(view==='host'){ sys.textContent='Host · '+esc(host.email); renderCards(); renderLog();
     tr.innerHTML='<button class="btn sm ghost" onclick="go(\'scan\')">Door scanner</button><button class="btn sm" onclick="signOut()">Sign out</button>'; }
   if(view==='scan'){ sys.textContent='Door 01 · Entry'; resetTerminal();
     tr.innerHTML='<button class="btn sm ghost" onclick="openLogin()">Log in</button><button class="btn sm primary" onclick="openSignup()">Create account</button>'; }
@@ -535,67 +476,33 @@ function prepGate(){
   const showSetup = gateMode ? gateMode==='setup' : !(host&&host.email);
   if(showSetup){
     setup.classList.remove('hide'); login.classList.add('hide');
-    document.getElementById('authTitle').textContent='Create Passlet account';
-    document.getElementById('authHint').textContent='Create your host sign-in.';
+    document.getElementById('authTitle').textContent='Create host account';
+    document.getElementById('authHint').textContent='Set up a facility and sign-in details.';
   }else{
     setup.classList.add('hide'); login.classList.remove('hide');
-    document.getElementById('authTitle').textContent='Passlet sign-in';
+    document.getElementById('authTitle').textContent='Host sign-in';
     document.getElementById('authHint').textContent='Sign in to manage passes.';
   }
 }
 async function createHost(){
+  const f=document.getElementById('suFacility').value.trim();
   const e=document.getElementById('suEmail').value.trim();
   const p=document.getElementById('suPass').value;
-  if(!e||!p){document.getElementById('suErr').textContent='Fill in all fields.';return;}
-  host={facility:'Passlet',email:e,pass:p}; await saveHost();
-  document.getElementById('facilityName').textContent='Passlet'; session=true; go('host');
+  if(!f||!e||!p){document.getElementById('suErr').textContent='Fill in all fields.';return;}
+  host={facility:f,email:e,pass:p}; await saveHost();
+  document.getElementById('facilityName').textContent=f; session=true; go('host');
 }
-const DEMO={email:'host@passlet.co.uk',pass:'passlet2026'};
 function login(){
   const e=document.getElementById('liEmail').value.trim();
   const p=document.getElementById('liPass').value;
-  const okDemo=(e.toLowerCase()===DEMO.email && p===DEMO.pass);
-  const okHost=(host && e.toLowerCase()===host.email.toLowerCase() && p===host.pass);
-  if(okDemo||okHost){
-    if(!host||!host.email){ host={facility:'Passlet',email:DEMO.email,pass:DEMO.pass}; saveHost(); }
+  if(host&&e.toLowerCase()===host.email.toLowerCase()&&p===host.pass){
     document.getElementById('liErr').textContent=''; session=true;
     document.getElementById('liPass').value=''; go('host');
   }else{ document.getElementById('liErr').textContent='Wrong email or password.'; }
 }
 function signOut(){session=false;go('scan');}
-async function savePassword(){
-  const v=document.getElementById('setPass').value; if(!v){toast('Enter a new password');return;}
-  host.pass=v; await saveHost();
-  document.getElementById('setPass').value='';
-  toast('Password changed');
-}
-async function loadDoor(){
-  const st=document.getElementById('doorStatus'); if(!st) return;
-  if(!cloud){ st.textContent='Connect a backend (Render) to use a door.'; return; }
-  try{
-    const d=await api('/door');
-    document.getElementById('dServer').value=d.server||'';
-    document.getElementById('dDevice').value=d.deviceId||'';
-    document.getElementById('dChannel').value=d.channel||'0';
-    st.textContent=(d.server&&d.deviceId&&d.hasKey)?'Door configured \u2713':'Not fully set up yet.';
-  }catch(e){ st.textContent='Could not load door settings.'; }
-}
-async function saveDoor(){
-  if(!cloud){ toast('No backend connected'); return; }
-  const body={ server:document.getElementById('dServer').value.trim(),
-               deviceId:document.getElementById('dDevice').value.trim(),
-               channel:document.getElementById('dChannel').value.trim()||'0' };
-  const key=document.getElementById('dKey').value; if(key) body.authKey=key;
-  try{ await api('/door','PUT',body); document.getElementById('dKey').value=''; toast('Door saved'); loadDoor(); }
-  catch(e){ toast('Could not save door'); }
-}
-async function testDoor(){
-  if(!cloud){ toast('No backend connected'); return; }
-  try{ const r=await api('/unlock','POST',{}); toast(r&&r.ok?'Unlock sent \u2713':((r&&r.note)||'Door not configured')); }
-  catch(e){ toast('Unlock failed'); }
-}
 async function resetHost(){
-  if(!confirm('Reset the Passlet account? This clears the current login so you can create your own. Issued passes are kept.'))return;
+  if(!confirm('Reset the host account? This clears the current login so you can create your own. Issued passes are kept.'))return;
   host=null; await saveHost(); gateMode='setup'; prepGate();
   toast('Host cleared — create a new account');
 }
@@ -605,16 +512,12 @@ async function issueCard(){
   const email=document.getElementById('gEmail').value.trim();
   const label=document.getElementById('gLabel').value.trim()||'Access pass';
   const expiry=document.getElementById('gExpiry').value||'';
-  const usesRaw=document.getElementById('gUses').value.trim();
-  const maxUses=usesRaw?Math.max(1,parseInt(usesRaw,10)||1):null;
-  const _mid=v=>{const x=new Date(v);x.setHours(0,0,0,0);return x.getTime();};
-  const durationDays=expiry?Math.max(1,Math.round((_mid(expiry+'T00:00:00')-_mid(Date.now()))/86400000)):null;
   if(!name||!email){toast('Add a guest name and email.');return;}
   let c; do{c=code();}while(cards.some(x=>x.code===c));
-  const card={id:id(),name,email,label,code:c,expiry,maxUses,used:0,durationDays,created:Date.now(),status:'active',sent:false};
+  const card={id:id(),name,email,label,code:c,expiry,created:Date.now(),status:'active',sent:false};
   cards.unshift(card); await saveCards();
   document.getElementById('gName').value='';document.getElementById('gEmail').value='';
-  document.getElementById('gLabel').value='';document.getElementById('gExpiry').value='';document.getElementById('gUses').value='';
+  document.getElementById('gLabel').value='';document.getElementById('gExpiry').value='';
   renderCards(); openModal(card);
 }
 function passLink(card){
@@ -623,7 +526,7 @@ function passLink(card){
 }
 function emailBody(card){
   const link=passLink(card);
-  return `Hi ${card.name},\n\nHere's your access pass for ${host?host.facility:'our facility'}${card.label?' ('+card.label+')':''}.\n\nOpen your pass:\n${link}\n\nOr use this code at the door: ${card.code}\n${card.expiry?'\nExpires: '+card.expiry+'\n':''}\nShow the QR code at the entry and scan it to get in. Keep it private.`;
+  return `Hi ${card.name},\n\nHere's your access pass for ${host?host.facility:'our facility'}${card.label?' ('+card.label+')':''}.\n\nOpen your barcode pass:\n${link}\n\nOr use this code at the door: ${card.code}\n${card.expiry?'\nExpires: '+card.expiry+'\n':''}\nShow the barcode at the entry and scan it to get in. Keep it private.`;
 }
 function openModal(card){
   current=card;
@@ -635,7 +538,7 @@ function openModal(card){
     `Code <b style="color:var(--amber)">${card.code}</b>${card.label?' · '+esc(card.label):''}${card.expiry?' · expires '+esc(card.expiry):''}<br>`+
     `Barcode pass link:`;
   document.getElementById('mLink').textContent=link;
-  const mq=document.getElementById('mQR'); mq.innerHTML=''; try{ new QRCode(mq,{text:card.code,width:150,height:150,correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+  try{ JsBarcode('#mBarcode', card.code, {format:'CODE128',width:2.4,height:74,displayValue:false,margin:8,background:'#ffffff',lineColor:'#10121a'}); }catch(e){}
   document.getElementById('modalBg').classList.add('show');
 }
 function closeModal(){document.getElementById('modalBg').classList.remove('show');}
@@ -650,19 +553,15 @@ function copyLink(){ if(!current)return; const link=passLink(current);
   navigator.clipboard?.writeText(link).then(()=>toast('Pass link copied')).catch(()=>toast(link)); }
 function downloadBarcode(){
   if(!current)return;
-  const tmp=document.createElement('div');
-  try{ new QRCode(tmp,{text:current.code,width:512,height:512,correctLevel:QRCode.CorrectLevel.M}); }catch(e){ return; }
-  const cv=tmp.querySelector('canvas'); const im=tmp.querySelector('img');
-  const src=cv?cv.toDataURL('image/png'):(im?im.src:'');
-  if(!src)return;
-  const a=document.createElement('a'); a.href=src;
-  a.download=(current.name.replace(/[^\w]+/g,'_')||'pass')+'_qr.png'; a.click();
+  const canvas=document.createElement('canvas');
+  JsBarcode(canvas, current.code, {format:'CODE128',width:3,height:110,displayValue:true,margin:16,background:'#ffffff',lineColor:'#000000'});
+  const a=document.createElement('a'); a.href=canvas.toDataURL('image/png');
+  a.download=(current.name.replace(/[^\w]+/g,'_')||'pass')+'_barcode.png'; a.click();
 }
 
 function statusOf(card){
   if(card.status==='revoked') return 'revoked';
   if(card.expiry && new Date(card.expiry+'T23:59:59')<new Date()) return 'expired';
-  if(card.maxUses && (card.used||0)>=card.maxUses) return 'depleted';
   return 'active';
 }
 function renderCards(){
@@ -675,7 +574,7 @@ function renderCards(){
       <div style="min-width:0">
         <div class="nm">${esc(c.name)}</div>
         <div class="em">${esc(c.email)}</div>
-        <div class="cd">${c.code}${c.expiry?' · exp '+c.expiry:''}${c.maxUses?' · '+(c.used||0)+'/'+c.maxUses+' uses':''}</div>
+        <div class="cd">${c.code}${c.expiry?' · exp '+c.expiry:''}</div>
       </div>
       <div class="spacer"></div>
       <span class="pill ${st}">${st}</span>
@@ -683,36 +582,18 @@ function renderCards(){
       <div class="prow-actions">
         <button class="btn sm" onclick="reopen('${c.id}')">Pass</button>
         <button class="btn sm" onclick="reopen('${c.id}')">Resend</button>
-        <button class="btn sm" onclick="renewCard('${c.id}')">Renew</button>
-        <button class="btn sm ghost danger" onclick="deleteCard('${c.id}')">Delete</button>
+        <button class="btn sm ghost ${st==='revoked'?'':'danger'}" onclick="toggleRevoke('${c.id}')">${st==='revoked'?'Restore':'Revoke'}</button>
       </div>
     </div>`;
   }).join('');
 }
 function reopen(cid){const c=cards.find(x=>x.id===cid);if(c)openModal(c);}
-async function renewCard(cid){
+async function toggleRevoke(cid){
   const c=cards.find(x=>x.id===cid);if(!c)return;
-  c.status='active';
-  c.used=0;                                     // regain full uses
-  let dur=c.durationDays;
-  if(!dur && c.expiry && c.created){            // legacy cards: derive from original window
-    const md=v=>{const x=new Date(v);x.setHours(0,0,0,0);return x.getTime();};
-    dur=Math.max(1,Math.round((md(c.expiry+'T00:00:00')-md(c.created))/86400000));
-  }
-  if(dur){                                      // fresh expiry = today + original days
-    const nd=new Date(); nd.setHours(0,0,0,0); nd.setDate(nd.getDate()+dur);
-    c.expiry=`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}-${String(nd.getDate()).padStart(2,'0')}`;
-    c.durationDays=dur;
-  }
-  await saveCards();renderCards(); toast('Pass renewed');
+  c.status=c.status==='revoked'?'active':'revoked';
+  await saveCards();renderCards();
 }
-async function deleteCard(cid){
-  const c=cards.find(x=>x.id===cid);if(!c)return;
-  if(!confirm('Delete '+c.name+'\u2019s pass? This can\u2019t be undone.'))return;
-  cards=cards.filter(x=>x.id!==cid);
-  await saveCards();renderCards(); toast('Pass deleted');
-}
-async function clearLog(){ log=[]; if(cloud){try{await cloud.clearLog();}catch(e){}} else await sSet('kc:log',JSON.stringify(log)); renderLog(); }
+async function clearLog(){ log=[]; if(cloud){try{await cloud.clearLog();}catch(e){console.warn(e);}} else await sSet('kc:log',JSON.stringify(log)); renderLog(); }
 function renderLog(){
   const box=document.getElementById('logList');
   if(!log.length){box.innerHTML='<span class="empty">No scans yet.</span>';return;}
@@ -727,7 +608,7 @@ function renderLog(){
 async function addLog(result,name,codeStr){
   const entry={t:Date.now(),result,name,code:codeStr};
   log.unshift(entry); log=log.slice(0,300);
-  if(cloud){ try{await cloud.addLog(entry);}catch(e){} }
+  if(cloud){ try{await cloud.addLog(entry);}catch(e){console.warn(e);} }
   else await sSet('kc:log',JSON.stringify(log));
   if(!document.getElementById('v-host').classList.contains('hide')) renderLog();
 }
@@ -742,14 +623,8 @@ async function checkCode(raw){
   if(!card){ result='denied'; who='Pass not recognized'; }
   else{
     const st=statusOf(card);
-    if(st==='active'){
-      result='granted';
-      card.used=(card.used||0)+1; saveCards();
-      const left=card.maxUses?(card.maxUses-card.used):null;
-      who=card.name+(card.label?' · '+card.label:'')+(left!==null?' · '+left+' use'+(left===1?'':'s')+' left':'');
-    }
+    if(st==='active'){ result='granted'; who=card.name+(card.label?' · '+card.label:''); }
     else if(st==='expired'){ result='denied'; who=card.name+' · pass expired'; }
-    else if(st==='depleted'){ result='denied'; who=card.name+' · no uses left'; }
     else{ result='denied'; who=card.name+' · pass revoked'; }
   }
   verdict(result,who); addLog(result, card?card.name:'Unknown', c);
@@ -772,14 +647,10 @@ function resetTerminal(){
   processing=false;
   const wrap=document.getElementById('ringWrap');wrap.classList.remove('grant','deny');
   document.getElementById('overlay').classList.remove('show');
-  document.getElementById('scanPrompt').textContent='Present QR code to enter';
+  document.getElementById('scanPrompt').textContent='Present barcode to enter';
   document.getElementById('readout').innerHTML='<div class="who">Ready</div>';
 }
-function triggerDoor(granted){
-  if(!granted || !cloud) return;
-  const h={}; if(window.DOOR_TOKEN) h['X-Door-Token']=window.DOOR_TOKEN;
-  fetch(apiBase()+'/unlock',{method:'POST',headers:h}).catch(()=>{});
-}
+function triggerDoor(granted){ if(granted) console.log('[DOOR] unlock pulse'); }
 function submitManual(){const el=document.getElementById('manualCode');checkCode(el.value);el.value='';}
 
 let actx;
@@ -788,17 +659,10 @@ function grant(){tone(660,.09);setTimeout(()=>tone(990,.16),90);}
 function deny(){tone(180,.28,'square',.12);}
 
 let html5,camOn=false;
-function ensure(){
-  if(!html5){
-    const cfg={ verbose:false, experimentalFeatures:{ useBarCodeDetectorIfSupported:true } };
-    if(window.Html5QrcodeSupportedFormats){ const F=Html5QrcodeSupportedFormats; cfg.formatsToSupport=[F.QR_CODE]; }
-    html5=new Html5Qrcode('reader',cfg);
-  }
-  return html5;
-}
+function ensure(){if(!html5)html5=new Html5Qrcode('reader',{verbose:false});return html5;}
 function camFail(msg){
   camOn=false;
-  const btn=document.getElementById('camToggle'); if(btn) btn.textContent='Scan QR code';
+  const btn=document.getElementById('camToggle'); if(btn) btn.textContent='Scan barcode';
   const ph=document.getElementById('camPlaceholder'); if(ph){ph.classList.remove('hide'); ph.innerHTML='Camera blocked';}
   const help=document.getElementById('camHelp'); if(help) help.innerHTML=msg;
 }
@@ -812,21 +676,15 @@ async function toggleCamera(){
   }
   try{
     ensure();
-    const attempts=[];
+    let config={facingMode:'environment'};
     try{
       const cams=await Html5Qrcode.getCameras();
       if(cams&&cams.length){
         const back=cams.find(c=>/back|rear|environment/i.test(c.label))||cams[cams.length-1];
-        if(back&&back.id) attempts.push({deviceId:{exact:back.id}});
+        if(back&&back.id) config={deviceId:{exact:back.id}};
       }
     }catch(_){}
-    attempts.push({facingMode:{ideal:'environment'}},{facingMode:'environment'},{facingMode:'user'});
-    let started=false,lastErr;
-    for(const cfg of attempts){
-      try{ await html5.start(cfg,{fps:12},d=>{if(!processing)checkCode(d);},()=>{}); started=true; break; }
-      catch(e){ lastErr=e; try{await html5.stop();}catch(_){} }
-    }
-    if(!started) throw lastErr||new Error('camera start failed');
+    await html5.start(config,{fps:10,aspectRatio:1},d=>{if(!processing)checkCode(d);},()=>{});
     camOn=true;
     document.getElementById('camPlaceholder').classList.add('hide');
     document.getElementById('scanline').classList.remove('hide');
@@ -841,23 +699,23 @@ async function toggleCamera(){
     else if(n==='NotReadableError')
       msg='The camera is in use by another app. Close it and try again — or type the code above.';
     camFail(msg);
-    
+    console.warn('camera error',err);
   }
 }
 function stopCamera(){
   if(html5&&camOn){html5.stop().then(()=>html5.clear()).catch(()=>{});}
   camOn=false;
-  const btn=document.getElementById('camToggle');if(btn)btn.textContent='Scan QR code';
+  const btn=document.getElementById('camToggle');if(btn)btn.textContent='Scan barcode';
   const ph=document.getElementById('camPlaceholder');if(ph)ph.classList.remove('hide');
   const sl=document.getElementById('scanline');if(sl)sl.classList.add('hide');
 }
 function showPass(p){
   go('pass');
-  document.getElementById('pvFacility').textContent='PASSLET';
+  document.getElementById('pvFacility').textContent=(host&&host.facility?host.facility:'Access Pass').toUpperCase();
   document.getElementById('pvName').textContent=p.name;
   document.getElementById('pvRole').textContent=p.label;
   document.getElementById('pvCode').textContent=p.code;
-  const pq=document.getElementById('pvQR'); pq.innerHTML=''; try{ new QRCode(pq,{text:p.code,width:190,height:190,correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+  try{ JsBarcode('#pvBarcode', p.code, {format:'CODE128',width:2.6,height:96,displayValue:false,margin:6,background:'#ffffff',lineColor:'#10121a'}); }catch(e){}
 }
 
 /* pointer sheen for the liquid-glass feel */
